@@ -4,7 +4,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -41,53 +45,37 @@ import org.futo.voiceinput.settings.Tip
 import org.futo.voiceinput.settings.USE_LANGUAGE_SPECIFIC_MODELS
 import org.futo.voiceinput.settings.getSettingBlocking
 import org.futo.voiceinput.settings.useDataStore
-import org.futo.voiceinput.startModelDownloadActivity
+import org.futo.voiceinput.startModelPickerActivity
+
+// startModelDownloadActivity replaced by startModelPickerActivity — no network in this fork.
 
 @Composable
 fun modelsSubtitle(): String? {
-    val (languages, _) = useDataStore(LANGUAGE_TOGGLES)
+    val (languages, _)               = useDataStore(LANGUAGE_TOGGLES)
     val (useLanguageSpecificModels, _) = useDataStore(USE_LANGUAGE_SPECIFIC_MODELS)
+    val (multilingual, _)            = useDataStore(ENABLE_MULTILINGUAL)
+    val (englishIdxActual, _)        = useDataStore(ENGLISH_MODEL_INDEX)
+    val (multilingualIdxActual, _)   = useDataStore(MULTILINGUAL_MODEL_INDEX)
 
-    val (multilingual, _) = useDataStore(ENABLE_MULTILINGUAL)
-
-    val (englishIdxActual, _) = useDataStore(ENGLISH_MODEL_INDEX)
-    val (multilingualIdxActual, _) = useDataStore(MULTILINGUAL_MODEL_INDEX)
-
-    // It doesn't matter what the multilingual model is set to if multilingual is disabled, the model
-    // isn't used anyway. So suppress any text about its value by pretending it's default
-    val multilingualIdx =
-        if (multilingual) multilingualIdxActual else MULTILINGUAL_MODEL_INDEX.default
-
-    val englishIdx = if((!multilingual) || (languages.contains("en") && useLanguageSpecificModels)) {
+    val multilingualIdx = if (multilingual) multilingualIdxActual else MULTILINGUAL_MODEL_INDEX.default
+    val englishIdx = if ((!multilingual) || (languages.contains("en") && useLanguageSpecificModels)) {
         englishIdxActual
     } else {
         ENGLISH_MODEL_INDEX.default
     }
 
-    val totalDiff =
-        (englishIdx - ENGLISH_MODEL_INDEX.default) + (multilingualIdx - MULTILINGUAL_MODEL_INDEX.default)
-    val usePlural =
-        ((englishIdx != ENGLISH_MODEL_INDEX.default) && (multilingualIdx != MULTILINGUAL_MODEL_INDEX.default))
-    return if (totalDiff < 0) {
-        if (usePlural) {
-            stringResource(R.string.using_smaller_models_accuracy_may_be_worse)
-        } else {
-            stringResource(R.string.using_smaller_model_accuracy_may_be_worse)
-        }
-    } else if (totalDiff > 0) {
-        if (usePlural) {
-            stringResource(R.string.using_larger_models_speed_may_be_slower)
-        } else {
-            stringResource(R.string.using_larger_model_speed_may_be_slower)
-        }
-    } else if ((englishIdx != ENGLISH_MODEL_INDEX.default) || (multilingualIdx != MULTILINGUAL_MODEL_INDEX.default)) {
-        if (usePlural) {
-            stringResource(R.string.using_non_default_models)
-        } else {
-            stringResource(R.string.using_non_default_model)
-        }
-    } else {
-        null
+    val totalDiff = (englishIdx - ENGLISH_MODEL_INDEX.default) + (multilingualIdx - MULTILINGUAL_MODEL_INDEX.default)
+    val usePlural = (englishIdx != ENGLISH_MODEL_INDEX.default) && (multilingualIdx != MULTILINGUAL_MODEL_INDEX.default)
+
+    return when {
+        totalDiff < 0 -> if (usePlural) stringResource(R.string.using_smaller_models_accuracy_may_be_worse)
+                         else           stringResource(R.string.using_smaller_model_accuracy_may_be_worse)
+        totalDiff > 0 -> if (usePlural) stringResource(R.string.using_larger_models_speed_may_be_slower)
+                         else           stringResource(R.string.using_larger_model_speed_may_be_slower)
+        (englishIdx != ENGLISH_MODEL_INDEX.default) || (multilingualIdx != MULTILINGUAL_MODEL_INDEX.default) ->
+            if (usePlural) stringResource(R.string.using_non_default_models)
+            else           stringResource(R.string.using_non_default_model)
+        else -> null
     }
 }
 
@@ -95,29 +83,23 @@ fun modelsSubtitle(): String? {
 @Composable
 fun PersonalDictionaryEditor(disabled: Boolean) {
     val context = LocalContext.current
-
     val personalDict = useDataStore(PERSONAL_DICTIONARY)
-    val textFieldValue = remember { mutableStateOf(context.getSettingBlocking(
-        PERSONAL_DICTIONARY.key, PERSONAL_DICTIONARY.default)) }
+    val textFieldValue = remember {
+        mutableStateOf(context.getSettingBlocking(PERSONAL_DICTIONARY.key, PERSONAL_DICTIONARY.default))
+    }
 
     LaunchedEffect(textFieldValue.value) {
         personalDict.setValue(textFieldValue.value)
     }
-    
-    ScreenTitle(title = stringResource(R.string.personal_dictionary))
 
+    ScreenTitle(title = stringResource(R.string.personal_dictionary))
     TextField(
         value = textFieldValue.value,
-        onValueChange = {
-            textFieldValue.value = it
-        },
+        onValueChange = { textFieldValue.value = it },
         placeholder = { Text(stringResource(R.string.personal_dictionary_placeholder)) },
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp, 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(8.dp, 4.dp),
         enabled = !disabled
     )
-
 }
 
 @Composable
@@ -126,48 +108,37 @@ fun ModelsScreen(
     settingsViewModel: SettingsViewModel = viewModel(),
     navController: NavHostController = rememberNavController()
 ) {
-    val (useMultilingual, _) = useDataStore(ENABLE_MULTILINGUAL)
-
-    val englishModelIndex = useDataStore(ENGLISH_MODEL_INDEX)
-    val multilingualModelIndex = useDataStore(MULTILINGUAL_MODEL_INDEX)
-
-    val (languages, _) = useDataStore(LANGUAGE_TOGGLES)
+    val (useMultilingual, _)         = useDataStore(ENABLE_MULTILINGUAL)
+    val englishModelIndex            = useDataStore(ENGLISH_MODEL_INDEX)
+    val multilingualModelIndex       = useDataStore(MULTILINGUAL_MODEL_INDEX)
+    val (languages, _)               = useDataStore(LANGUAGE_TOGGLES)
     val (useLanguageSpecificModels, _) = useDataStore(USE_LANGUAGE_SPECIFIC_MODELS)
-
-    val context = LocalContext.current
-    val needsUpdate = NeedsMigration()
-
-    val wasMigrated = useDataStore(setting = MODELS_MIGRATED)
-    val dismissMigrationTip = useDataStore(setting = DISMISS_MIGRATION_TIP)
-
-    val launchDownloaderIfNecessary = {
-        if (useMultilingual) {
-            context.startModelDownloadActivity(
-                listOf(
-                    ENGLISH_MODELS[englishModelIndex.value],
-                    MULTILINGUAL_MODELS[multilingualModelIndex.value]
-                )
-            )
-        } else {
-            context.startModelDownloadActivity(listOf(ENGLISH_MODELS[englishModelIndex.value]))
-        }
-    }
-
-    LaunchedEffect(listOf(useMultilingual, englishModelIndex.value, multilingualModelIndex.value)) {
-        launchDownloaderIfNecessary()
-    }
-
+    val context                      = LocalContext.current
+    val needsUpdate                  = NeedsMigration()
+    val wasMigrated                  = useDataStore(MODELS_MIGRATED)
+    val dismissMigrationTip          = useDataStore(DISMISS_MIGRATION_TIP)
 
     ScrollableList {
         ScreenTitle(stringResource(R.string.model_options), showBack = true, navController = navController)
 
         ConditionalModelUpdate()
 
-        if(wasMigrated.value && !dismissMigrationTip.value) {
+        if (wasMigrated.value && !dismissMigrationTip.value) {
             Tip(stringResource(R.string.new_model_features_tip), onDismiss = { dismissMigrationTip.setValue(true) })
         }
 
-        if(languages.size > 1) {
+        // ── Model picker button ────────────────────────────────────────────
+        // Replaces the old automatic download trigger.
+        Button(
+            onClick = { context.startModelPickerActivity() },
+            modifier = Modifier.fillMaxWidth().padding(8.dp, 4.dp)
+        ) {
+            Icon(Icons.Default.FolderOpen, contentDescription = null)
+            Spacer(Modifier.padding(4.dp))
+            Text(stringResource(R.string.model_manager))
+        }
+
+        if (languages.size > 1) {
             SettingToggleDataStore(
                 stringResource(R.string.manually_select_language),
                 MANUALLY_SELECT_LANGUAGE,
@@ -175,9 +146,8 @@ fun ModelsScreen(
             )
         }
 
-        if(!needsUpdate) {
+        if (!needsUpdate) {
             PersonalDictionaryEditor(disabled = false)
-
             Spacer(modifier = Modifier.height(32.dp))
         }
 
@@ -190,7 +160,7 @@ fun ModelsScreen(
             )
         }
 
-        if((!useMultilingual) || (languages.contains("en") && useLanguageSpecificModels)) {
+        if ((!useMultilingual) || (languages.contains("en") && useLanguageSpecificModels)) {
             SettingRadio(
                 stringResource(R.string.english_model),
                 ENGLISH_MODELS.indices.toList(),

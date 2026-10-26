@@ -15,32 +15,99 @@ import org.futo.voiceinput.ggml.BailLanguageException
 import org.futo.voiceinput.ggml.DecodingMode
 import org.futo.voiceinput.ggml.WhisperGGML
 import org.futo.voiceinput.migration.MigrationActivity
+import org.futo.voiceinput.models.ModelSlot
+import org.futo.voiceinput.models.getModelUri
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 
-
 /**
- * This is necessary to synchronize so two threads don't try to use the same tensor at once,
- * free a model while it's in use, etc.
+ * Synchronises inference so two threads don't use the same tensor or free a model in use.
  */
 @OptIn(DelicateCoroutinesApi::class)
 private val inferenceContext = newSingleThreadContext("InferenceContext")
 
+// ── Model loading ─────────────────────────────────────────────────────────────
 
+/**
+ * Loads a model from an asset bundled inside the APK.
+ */
 @Throws(IOException::class)
-private fun Context.tryOpenDownloadedModel(pathStr: String): MappedByteBuffer {
-    return File(this.filesDir, pathStr).inputStream().use { fis ->
-        fis.channel.use { channel ->
-            channel.map(
-                FileChannel.MapMode.READ_ONLY,
-                0, channel.size()
-            ).load()
+private fun loadMappedAsset(context: Context, filePath: String): MappedByteBuffer =
+    context.assets.openFd(filePath).use { fd ->
+        FileInputStream(fd.fileDescriptor).use { fis ->
+            fis.channel.map(FileChannel.MapMode.READ_ONLY, fd.startOffset, fd.declaredLength)
+        }
+    }
+
+/**
+ * Loads a model from a SAF URI previously persisted via [ModelUriStore].
+ * The file is NOT copied — it is memory-mapped in-place from the user's chosen location.
+ *
+ * @throws IOException if the URI has no persisted permission or the file can't be opened.
+ */
+@Throws(IOException::class)
+private fun loadMappedSafUri(context: Context, slot: ModelSlot): MappedByteBuffer {
+    val uri = runBlocking { context.getModelUri(slot) }
+        ?: throw IOException("No URI configured for model slot $slot. " +
+                             "Open Settings → Model → Model Manager to pick a file.")
+
+    val pfd = context.contentResolver.openFileDescriptor(uri, "r")
+        ?: throw IOException("Could not open file descriptor for URI: $uri")
+
+    return pfd.use { descriptor ->
+        FileInputStream(descriptor.fileDescriptor).use { fis ->
+            fis.channel.use { ch ->
+                ch.map(FileChannel.MapMode.READ_ONLY, 0, ch.size()).also { it.load() }
+            }
         }
     }
 }
+
+/**
+ * Resolves the correct [ModelSlot] for a given [ModelData] based on the ggml filename.
+ * Falls back to null if no matching slot is found (e.g. built-in asset — no slot needed).
+ */
+private fun slotForModel(model: ModelData): ModelSlot? {
+    if (model.ggml.is_builtin_asset) return null
+    return when (model.ggml.ggml_file) {
+        "base_en_acft_q8_0.bin"   -> ModelSlot.ENGLISH_1
+        "small_en_acft_q8_0.bin"  -> ModelSlot.ENGLISH_2
+        "tiny_acft_q8_0.bin"      -> ModelSlot.MULTILINGUAL_0
+        "base_acft_q8_0.bin"      -> ModelSlot.MULTILINGUAL_1
+        "small_acft_q8_0.bin"     -> ModelSlot.MULTILINGUAL_2
+        else -> null
+    }
+}
+
+@Throws(IOException::class)
+fun loadGGMLModel(context: Context, model: ModelData, onPartialDecode: (String) -> Unit): WhisperGGML {
+    val modelBuffer = if (model.ggml.is_builtin_asset) {
+        loadMappedAsset(context, model.ggml.ggml_file)
+    } else {
+        val slot = slotForModel(model)
+            ?: throw IOException("Unknown model file '${model.ggml.ggml_file}' — cannot locate SAF slot.")
+        loadMappedSafUri(context, slot)
+    }
+    return WhisperGGML(modelBuffer, onPartialDecode)
+}
+
+private fun openMigrationIfModelIsLegacy(context: Context, model: ModelData) {
+    if (listOf(
+            model.legacy.encoder_xatn_file,
+            model.legacy.decoder_file,
+            model.legacy.vocab_file
+        ).all { File(context.filesDir, it).exists() }
+    ) {
+        val intent = Intent(context, MigrationActivity::class.java)
+        if (context !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+    }
+}
+
+// ── Run states ────────────────────────────────────────────────────────────────
 
 enum class RunState {
     ExtractingFeatures,
@@ -50,46 +117,7 @@ enum class RunState {
     OOMError
 }
 
-@Throws(IOException::class)
-private fun loadMappedFile(context: Context, filePath: String): MappedByteBuffer =
-    context.assets.openFd(filePath).use { fileDescriptor ->
-        FileInputStream(fileDescriptor.fileDescriptor).use { inputStream ->
-            inputStream.channel.map(
-                FileChannel.MapMode.READ_ONLY,
-                fileDescriptor.startOffset,
-                fileDescriptor.declaredLength
-            )
-        }
-    }
-
-@Throws(IOException::class)
-fun loadGGMLModel(context: Context, model: ModelData, onPartialDecode: (String) -> Unit): WhisperGGML {
-    val modelBuffer = if(model.ggml.is_builtin_asset) {
-        loadMappedFile(context, model.ggml.ggml_file)
-    } else {
-        context.tryOpenDownloadedModel(model.ggml.ggml_file)
-    }
-
-    return WhisperGGML(modelBuffer, onPartialDecode)
-}
-
-private fun openMigrationIfModelIsLegacy(context: Context, model: ModelData) {
-    if(listOf(
-        model.legacy.encoder_xatn_file,
-        model.legacy.decoder_file,
-        model.legacy.vocab_file
-    ).all { File(context.filesDir, it).exists() }) {
-        // We are in the legacy model workflow, which is no longer supported
-        // Immediately open the migration menu
-        val intent = Intent(context, MigrationActivity::class.java)
-
-        if(context !is Activity) {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-
-        context.startActivity(intent)
-    }
-}
+// ── Model wrapper ─────────────────────────────────────────────────────────────
 
 class WhisperModelWrapper(
     val context: Context,
@@ -97,7 +125,6 @@ class WhisperModelWrapper(
     fallbackEnglishModel: ModelData?,
     private val suppressNonSpeech: Boolean,
     private val languages: Set<String>,
-
     private val onStatusUpdate: (RunState) -> Unit,
     private val onPartialDecode: (String) -> Unit,
 ) {
@@ -105,38 +132,33 @@ class WhisperModelWrapper(
     private var fallbackModelGGML: WhisperGGML? = null
 
     init {
-        if(primaryModel == fallbackEnglishModel) {
-            throw IllegalArgumentException("Fallback model must be unique from the primary model")
+        require(primaryModel != fallbackEnglishModel) {
+            "Fallback model must be unique from the primary model"
         }
 
         try {
             primaryModelGGML = loadGGMLModel(context, primaryModel, onPartialDecode)
-        } catch(e: Exception) {
-            runBlocking {
-                primaryModelGGML?.close()
-            }
-
-            Log.e("WhisperModel", "Exception during loading primary ggml model: ${e.stackTraceToString()}")
+        } catch (e: Exception) {
+            runBlocking { primaryModelGGML?.close() }
+            Log.e("WhisperModel", "Failed to load primary model: ${e.stackTraceToString()}")
             openMigrationIfModelIsLegacy(context, primaryModel)
             throw e
         }
 
-        fallbackEnglishModel?.let { fallbackEnglishModel ->
+        fallbackEnglishModel?.let { fallback ->
             try {
-                fallbackModelGGML = loadGGMLModel(context, fallbackEnglishModel, onPartialDecode)
-            } catch(e: Exception) {
-                runBlocking {
-                    fallbackModelGGML?.close()
-                }
-
-                Log.e("WhisperModel", "Exception during loading fallback ggml model: ${e.stackTraceToString()}")
-                openMigrationIfModelIsLegacy(context, fallbackEnglishModel)
+                fallbackModelGGML = loadGGMLModel(context, fallback, onPartialDecode)
+            } catch (e: Exception) {
+                runBlocking { fallbackModelGGML?.close() }
+                Log.e("WhisperModel", "Failed to load fallback model: ${e.stackTraceToString()}")
+                openMigrationIfModelIsLegacy(context, fallback)
                 throw e
             }
         }
     }
 
     private var modelJob: Job? = null
+
     suspend fun run(
         samples: FloatArray,
         glossary: String,
@@ -145,45 +167,25 @@ class WhisperModelWrapper(
     ): String {
         yield()
 
-        // TODO: This only works well for English, it may cause weird behavior with other languages
-        // (maybe need to translate "Glossary" per language, or language-neutral way of expressing)
         val glossaryCleaned = glossary.trim().replace("\n", ", ").replace("  ", " ")
-        val prompt = if(glossary.isBlank()) "" else "(Glossary: ${glossaryCleaned})"
+        val prompt = if (glossary.isBlank()) "" else "(Glossary: $glossaryCleaned)"
 
         val languagesOrLanguage = forceLanguage?.let { arrayOf(it) } ?: languages.toTypedArray()
+        val bailLanguages = if (fallbackModelGGML != null) arrayOf("en") else arrayOf()
 
-        val bailLanguages = if(fallbackModelGGML != null) {
-            arrayOf("en")
-        } else {
-            arrayOf()
-        }
-
-        if(primaryModelGGML != null) {
-            // TODO: Early exiting from native code if cancelled
-            return try {
-                yield()
-                onStatusUpdate(RunState.ProcessingEncoder)
-                primaryModelGGML!!.infer(
-                    samples,
-                    prompt,
-                    languagesOrLanguage,
-                    bailLanguages,
-                    decodingMode,
-                    suppressNonSpeech
-                )
-            }catch(e: BailLanguageException) {
-                yield()
-                onStatusUpdate(RunState.SwitchingModel)
-                assert(e.language == "en")
-
-                if(fallbackModelGGML != null) {
-                    fallbackModelGGML!!.infer(samples, prompt, languagesOrLanguage, arrayOf(), decodingMode, suppressNonSpeech)
-                } else {
-                    throw IllegalStateException("Fallback model null")
-                }
-            }
-        } else {
-            throw IllegalStateException("No models are loaded!")
+        return try {
+            yield()
+            onStatusUpdate(RunState.ProcessingEncoder)
+            primaryModelGGML!!.infer(
+                samples, prompt, languagesOrLanguage, bailLanguages, decodingMode, suppressNonSpeech
+            )
+        } catch (e: BailLanguageException) {
+            yield()
+            onStatusUpdate(RunState.SwitchingModel)
+            assert(e.language == "en")
+            fallbackModelGGML?.infer(
+                samples, prompt, languagesOrLanguage, arrayOf(), decodingMode, suppressNonSpeech
+            ) ?: throw IllegalStateException("Fallback model is null")
         }
     }
 
