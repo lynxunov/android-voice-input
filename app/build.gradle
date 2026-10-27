@@ -56,10 +56,10 @@ android {
 
         buildTypes.each {
             // ACRA fully removed — no crash reporting, no telemetry
-            it.buildConfigField "boolean", "ENABLE_ACRA", "false"
-            it.buildConfigField "String",  "ACRA_URL",      "null"
-            it.buildConfigField "String",  "ACRA_USER",     "null"
-            it.buildConfigField "String",  "ACRA_PASSWORD", "null"
+            it.buildConfigField "boolean", "ENABLE_ACRA",    "false"
+            it.buildConfigField "String",  "ACRA_URL",       "null"
+            it.buildConfigField "String",  "ACRA_USER",      "null"
+            it.buildConfigField "String",  "ACRA_PASSWORD",  "null"
         }
     }
 
@@ -90,7 +90,12 @@ android {
     productFlavors {
         fDroid {
             dimension "version"
-            // No update checker; no Play billing; non-dev build
+        }
+    }
+
+    // sourceSets must be declared at the android {} top level, not inside productFlavors {}.
+    sourceSets {
+        fDroid {
             java.srcDir 'src/withoutUpdateChecking/java'
             java.srcDir 'src/payPalBilling/java'
             res.srcDir  'src/payPalBilling/res'
