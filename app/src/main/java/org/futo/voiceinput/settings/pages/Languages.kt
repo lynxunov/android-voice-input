@@ -26,8 +26,7 @@ import org.futo.voiceinput.settings.SettingToggleRaw
 import org.futo.voiceinput.settings.SettingsViewModel
 import org.futo.voiceinput.settings.Tip
 import org.futo.voiceinput.settings.useDataStore
-import org.futo.voiceinput.startModelDownloadActivity
-
+import org.futo.voiceinput.startModelPickerActivity
 
 @Composable
 fun LanguageToggle(
@@ -38,18 +37,13 @@ fun LanguageToggle(
     subtitle: String?
 ) {
     val disabled = languages.contains(id) && languages.size == 1
-
     SettingToggleRaw(
         name,
         languages.contains(id),
         {
-            setLanguages((languages.filter { it != id } + if (it) {
-                listOf(id)
-            } else {
-                listOf()
-            }).toSet())
+            setLanguages((languages.filter { it != id } + if (it) listOf(id) else listOf()).toSet())
         },
-        subtitle = if(disabled) { stringResource(R.string.only_language_enabled) } else { subtitle },
+        subtitle = if (disabled) stringResource(R.string.only_language_enabled) else subtitle,
         disabled = disabled
     )
 }
@@ -64,13 +58,12 @@ fun LanguagesScreen(
     val (multilingualModelIndex, _) = useDataStore(MULTILINGUAL_MODEL_INDEX)
     val (languages, setLanguages) = useDataStore(LANGUAGE_TOGGLES)
     val context = LocalContext.current
-
     val (allowUndertrainedLanguages, _) = useDataStore(ALLOW_UNDERTRAINED_LANGUAGES)
-
 
     LaunchedEffect(listOf(multilingualModelIndex, multilingual)) {
         if (multilingual) {
-            context.startModelDownloadActivity(listOf(MULTILINGUAL_MODELS[multilingualModelIndex]))
+            // No auto-download in this fork: open Model Manager so user can pick the file.
+            context.startModelPickerActivity()
         }
     }
 
@@ -83,17 +76,15 @@ fun LanguagesScreen(
         item {
             ScreenTitle(stringResource(R.string.languages_title), showBack = true, navController = navController)
         }
-
         item {
             Tip(stringResource(R.string.language_tip_1))
             Tip(stringResource(R.string.language_tip_2))
             Tip(stringResource(R.string.language_tip_3))
         }
-
         items(LANGUAGE_LIST.size) {
             val language = LANGUAGE_LIST[it]
 
-            if(allowUndertrainedLanguages && it > 0) {
+            if (allowUndertrainedLanguages && it > 0) {
                 if (language.trainedHourCount < 1000 && LANGUAGE_LIST[it - 1].trainedHourCount >= 1000) {
                     Spacer(modifier = Modifier.height(48.dp))
                     Tip(stringResource(R.string.language_unsupported_warning_1000))
@@ -109,8 +100,6 @@ fun LanguagesScreen(
                 stringResource(R.string.trained_on_x_hours, language.trainedHourCount)
             }
 
-            // Only show languages trained with over 1000 hours for now, as anything lower
-            // can be laughably bad on the tiny model
             if (allowUndertrainedLanguages || language.trainedHourCount > 1000) {
                 LanguageToggle(language.id, language.name, languages, setLanguages, subtitle)
             }
