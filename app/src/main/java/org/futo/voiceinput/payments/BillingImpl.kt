@@ -1,17 +1,17 @@
 package org.futo.voiceinput.payments
 
-import android.app.Activity
-
 /**
  * No-op billing interface for the Lynx fork.
- * Declares all methods that the payPalBilling source-set stubs override,
- * so the fDroid flavor compiles without any payment logic executing at runtime.
+ * Signatures match exactly what DummyPlayBilling and PayPalBilling override.
+ * No billing logic executes at runtime — PayPalBilling.isAllowed() is overridden
+ * to return false in our BillingManager, so startConnection/launchBillingFlow
+ * are never called.
  */
 interface BillingImpl {
-    fun checkAlreadyOwnsProduct() {}
-    fun startConnection(onReady: (BillingImpl) -> Unit) {}
-    fun onResume() {}
-    fun launchBillingFlow(activity: Activity) {}
-    fun supportsCheckingIfAlreadyOwnsProduct(): Boolean = false
-    fun getName(): String = ""
+    fun checkAlreadyOwnsProduct()
+    fun startConnection(onReady: () -> Unit)
+    fun onResume()
+    fun launchBillingFlow()
+    fun supportsCheckingIfAlreadyOwnsProduct(): Boolean
+    fun getName(): String
 }

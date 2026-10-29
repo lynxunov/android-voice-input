@@ -2,35 +2,20 @@ package org.futo.voiceinput.payments
 
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
-import org.futo.voiceinput.openURI
 
+/**
+ * PayPal billing stub for the Lynx fork — disabled entirely.
+ * isAllowed() returns false so BillingManager never instantiates this class.
+ */
 class PayPalBilling(val context: Context, private val coroutineScope: CoroutineScope) : BillingImpl {
     companion object {
-        fun isAllowed(): Boolean {
-            return true
-        }
+        fun isAllowed(): Boolean = false  // Disabled in this fork
     }
 
-    override fun checkAlreadyOwnsProduct() {
-
-    }
-
-    override fun startConnection(onReady: () -> Unit) {
-        onReady()
-    }
-
-    override fun onResume() {
-    }
-
-    override fun launchBillingFlow() {
-        context.openURI("https://pay2.futo.org/checkout/polar/futo-keyboard/futo-keyboard-voiceinput/checkout-ready?success=redirect-to-organization-page")
-    }
-
-    override fun supportsCheckingIfAlreadyOwnsProduct(): Boolean {
-        return false
-    }
-
-    override fun getName(): String {
-        return ""
-    }
+    override fun checkAlreadyOwnsProduct() {}
+    override fun startConnection(onReady: () -> Unit) {}
+    override fun onResume() {}
+    override fun launchBillingFlow() {}
+    override fun supportsCheckingIfAlreadyOwnsProduct(): Boolean = false
+    override fun getName(): String = ""
 }

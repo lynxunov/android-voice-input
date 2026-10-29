@@ -35,6 +35,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -68,8 +69,7 @@ private fun ModelPickerScreen() {
     val scope = rememberCoroutineScope()
     var slotStatus by remember { mutableStateOf<Map<ModelSlot, Boolean>>(emptyMap()) }
     var pendingSlot by remember { mutableStateOf<ModelSlot?>(null) }
-
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         slotStatus = withContext(Dispatchers.IO) { context.allModelSlotStatus() }
@@ -213,7 +213,8 @@ private fun ModelSlotRow(
         ) {
             Icon(
                 painter = painterResource(
-                    if (isAvailable) R.drawable.check_circle else R.drawable.alert_circle
+                    // alert_circle for not-ready; activity (checkmark-like) for ready
+                    if (isAvailable) R.drawable.activity else R.drawable.alert_circle
                 ),
                 contentDescription = null,
                 tint = if (isAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
@@ -224,7 +225,8 @@ private fun ModelSlotRow(
                 Text(
                     if (isAvailable) "Ready" else "Not configured",
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (isAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isAvailable) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             if (isAvailable) {
@@ -232,7 +234,7 @@ private fun ModelSlotRow(
             }
             FilledTonalIconButton(onClick = onPickClicked) {
                 Icon(
-                    painter = painterResource(R.drawable.cpu), // folder icon substitute
+                    painter = painterResource(R.drawable.cpu),
                     contentDescription = "Pick file",
                     modifier = Modifier.size(18.dp)
                 )
