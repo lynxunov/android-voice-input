@@ -2,18 +2,11 @@ package org.futo.voiceinput.updates
 
 import android.content.Context
 
-suspend fun checkForUpdate(): UpdateResult? {
-    return null
-}
+// UpdateResult removed — no update infrastructure in this fork.
+// All functions are no-ops retained only for call-site compatibility.
 
-suspend fun checkForUpdateAndSaveToPreferences(context: Context): Boolean {
-    return false
-}
-
-suspend fun retrieveSavedLastUpdateCheckResult(context: Context): UpdateResult? {
-    return null
-}
+suspend fun checkForUpdateAndSaveToPreferences(context: Context): Boolean = false
 
 fun scheduleUpdateCheckingJob(context: Context) {
-
+    // Intentionally empty — no update checker in this fork.
 }

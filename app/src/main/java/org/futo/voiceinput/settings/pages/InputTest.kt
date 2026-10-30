@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import org.futo.voiceinput.R
-import org.futo.voiceinput.settings.FORCE_SHOW_NOTICE
 import org.futo.voiceinput.settings.NavigationItem
 import org.futo.voiceinput.settings.NavigationItemStyle
 import org.futo.voiceinput.settings.ScreenTitle
@@ -36,8 +35,8 @@ import org.futo.voiceinput.settings.ScrollableList
 import org.futo.voiceinput.settings.SettingItem
 import org.futo.voiceinput.settings.SettingsActivity
 import org.futo.voiceinput.settings.openImeOptions
-import org.futo.voiceinput.settings.setSetting
 
+// FORCE_SHOW_NOTICE removed — payment infrastructure stripped from this fork.
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,40 +55,22 @@ fun TestScreen(
 
     val context = LocalContext.current
 
-    LaunchedEffect(text) {
-        if (text.lowercase().trim() == "@force30days") {
-            context.setSetting(FORCE_SHOW_NOTICE, true)
-            navController.popBackStack("home", false, false)
-        }
-    }
-
     ScrollableList {
         ScreenTitle(title = stringResource(R.string.input_testing), showBack = true, navController = navController)
         TextField(
             value = text,
             onValueChange = { text = it },
             placeholder = { Text(stringResource(R.string.input_test_field)) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
         )
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Button(
                 onClick = { (context as SettingsActivity).launchVoiceIntent() },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(stringResource(R.string.trigger_voice_input_intent))
             }
-            Text(
-                voiceIntentResult,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Text(voiceIntentResult, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
 
         Spacer(modifier = Modifier.height(32.dp))
