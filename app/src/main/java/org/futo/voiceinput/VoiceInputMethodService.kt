@@ -36,7 +36,6 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.painterResource
@@ -62,24 +61,26 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.findViewTreeSavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import org.futo.voiceinput.migration.scheduleModelMigrationJob
-import org.futo.voiceinput.settings.pages.ConditionalUnpaidNoticeInVoiceInputWindow
 import org.futo.voiceinput.theme.UixThemeAuto
-import org.futo.voiceinput.updates.scheduleUpdateCheckingJob
+
+// ConditionalUnpaidNoticeInVoiceInputWindow removed — no payment infrastructure.
+// scheduleUpdateCheckingJob removed — no update checker in this fork.
 
 val SupportsNavbarExtension = Build.VERSION.SDK_INT >= 28
 
 @Composable
 fun navBarHeight(): Dp = with(LocalDensity.current) {
-    if(SupportsNavbarExtension) {
-        WindowInsets.systemBars.getBottom(this).toDp()
-    } else {
-        0.dp
-    }
+    if (SupportsNavbarExtension) WindowInsets.systemBars.getBottom(this).toDp() else 0.dp
 }
 
-
 @Composable
-fun RecognizerInputMethodWindow(switchBack: (() -> Unit)? = null, allowClick: Boolean = false, onPauseVAD: (Boolean) -> Unit = { }, onFinish: () -> Unit = { }, content: @Composable ColumnScope.() -> Unit) {
+fun RecognizerInputMethodWindow(
+    switchBack: (() -> Unit)? = null,
+    allowClick: Boolean = false,
+    onPauseVAD: (Boolean) -> Unit = { },
+    onFinish: () -> Unit = { },
+    content: @Composable ColumnScope.() -> Unit
+) {
     UixThemeAuto(false) {
         Surface(
             modifier = Modifier
@@ -94,29 +95,21 @@ fun RecognizerInputMethodWindow(switchBack: (() -> Unit)? = null, allowClick: Bo
             Column(
                 modifier = Modifier.padding(0.dp, 0.dp, 0.dp, 64.dp).drawBehind {
                     with(icon) {
-                        translate(left = -icon.intrinsicSize.width/2, top = -icon.intrinsicSize.height/2) {
+                        translate(left = -icon.intrinsicSize.width / 2, top = -icon.intrinsicSize.height / 2) {
                             translate(left = size.width / 3, top = size.height / 2) {
                                 scale(scaleX = 1.3f, scaleY = 1.3f) {
                                     draw(icon.intrinsicSize, colorFilter = ColorFilter.tint(bgIconTint))
                                 }
-
                             }
                         }
                     }
                 }
             ) {
-
-                val context = LocalContext.current
                 Box(modifier = Modifier.fillMaxWidth()) {
-                    Box(modifier = Modifier.align(Alignment.CenterStart)) {
-                        ConditionalUnpaidNoticeInVoiceInputWindow(switchBack)
-                    }
-
+                    // Payment notice removed
                     Box(modifier = Modifier.align(Alignment.CenterEnd)) {
                         if (switchBack != null) {
-                            IconButton(
-                                onClick = switchBack
-                            ) {
+                            IconButton(onClick = switchBack) {
                                 Icon(
                                     Icons.Default.Close,
                                     contentDescription = stringResource(R.string.cancel),
@@ -129,9 +122,7 @@ fun RecognizerInputMethodWindow(switchBack: (() -> Unit)? = null, allowClick: Bo
                     }
                 }
 
-                Box(modifier = Modifier.padding(12.dp)) {
-                    
-                }
+                Box(modifier = Modifier.padding(12.dp)) {}
 
                 content()
                 Spacer(Modifier.height(navBarHeight()))
@@ -140,50 +131,39 @@ fun RecognizerInputMethodWindow(switchBack: (() -> Unit)? = null, allowClick: Bo
     }
 }
 
-
 @Preview
 @Composable
 fun RecognizeIMELoadingPreview() {
-    RecognizerInputMethodWindow(switchBack = { }) {
-        RecognizeLoadingCircle()
-    }
+    RecognizerInputMethodWindow(switchBack = { }) { RecognizeLoadingCircle() }
 }
 
 @Preview
 @Composable
 fun PreviewRecognizeViewLoadedIME() {
-    RecognizerInputMethodWindow(switchBack = { }) {
-        InnerRecognize()
-    }
+    RecognizerInputMethodWindow(switchBack = { }) { InnerRecognize() }
 }
+
 @Preview
 @Composable
 fun PreviewRecognizeViewNoMicIME() {
-    RecognizerInputMethodWindow(switchBack = { }) {
-        RecognizeMicError(openSettings = { })
-    }
+    RecognizerInputMethodWindow(switchBack = { }) { RecognizeMicError(openSettings = { }) }
 }
 
-
 val punctuationChars = setOf('!', '?', '.', ',')
+
 class VoiceInputMethodService : InputMethodService(), LifecycleOwner, ViewModelStoreOwner,
     SavedStateRegistryOwner {
-    private val mSavedStateRegistryController = SavedStateRegistryController.create(this)
 
-    override val savedStateRegistry: SavedStateRegistry
-        get() = mSavedStateRegistryController.savedStateRegistry
+    private val mSavedStateRegistryController = SavedStateRegistryController.create(this)
+    override val savedStateRegistry: SavedStateRegistry get() = mSavedStateRegistryController.savedStateRegistry
 
     private val mLifecycleRegistry = LifecycleRegistry(this)
-
-    override val lifecycle
-        get() = mLifecycleRegistry
+    override val lifecycle get() = mLifecycleRegistry
 
     private val store = ViewModelStore()
-    override val viewModelStore
-        get() = store
+    override val viewModelStore get() = store
 
-    private fun handleLifecycleEvent(event: Lifecycle.Event) =
-        mLifecycleRegistry.handleLifecycleEvent(event)
+    private fun handleLifecycleEvent(event: Lifecycle.Event) = mLifecycleRegistry.handleLifecycleEvent(event)
 
     private val inputMethodManager: InputMethodManager
         get() = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -192,26 +172,21 @@ class VoiceInputMethodService : InputMethodService(), LifecycleOwner, ViewModelS
         super.onCreate()
         mSavedStateRegistryController.performRestore(null)
         handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
-
-        scheduleUpdateCheckingJob(applicationContext)
+        // scheduleUpdateCheckingJob intentionally omitted
         scheduleModelMigrationJob(applicationContext)
     }
 
     private val recognizer = object : RecognizerView() {
-        override val context: Context
-            get() = this@VoiceInputMethodService
-        override val lifecycleScope: LifecycleCoroutineScope
-            get() = this@VoiceInputMethodService.lifecycle.coroutineScope
+        override val context: Context get() = this@VoiceInputMethodService
+        override val lifecycleScope: LifecycleCoroutineScope get() = this@VoiceInputMethodService.lifecycle.coroutineScope
 
-        private val currentContent: MutableState<@Composable () -> Unit> = mutableStateOf( { } )
+        private val currentContent: MutableState<@Composable () -> Unit> = mutableStateOf({})
         override fun setContent(content: @Composable () -> Unit) {
             currentContent.value = content
             composeView?.setContent { content() }
         }
 
-        fun refreshContent() {
-            composeView?.setContent { currentContent.value() }
-        }
+        fun refreshContent() { composeView?.setContent { currentContent.value() } }
 
         override fun onCancel() {
             needsInitialization = true
@@ -219,12 +194,14 @@ class VoiceInputMethodService : InputMethodService(), LifecycleOwner, ViewModelS
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 switchToPreviousInputMethod()
             } else {
+                @Suppress("DEPRECATION")
                 inputMethodManager.switchToLastInputMethod(window.window!!.attributes.token)
             }
         }
 
         var prevText: CharSequence? = null
         var nextText: CharSequence? = null
+
         override fun decodingStarted() {
             this@VoiceInputMethodService.currentInputConnection.also {
                 prevText = it.getTextBeforeCursor(1, 0)
@@ -235,52 +212,32 @@ class VoiceInputMethodService : InputMethodService(), LifecycleOwner, ViewModelS
         override fun sendResult(result: String) {
             this@VoiceInputMethodService.currentInputConnection.also {
                 var modifiedResult = result
-
-                // Insert space automatically if ended at punctuation
-                // TODO: Could send text before cursor as whisper prompt
-
-                if(!prevText.isNullOrBlank()) {
+                if (!prevText.isNullOrBlank()) {
                     val lastChar = prevText?.last()
-
-                    if (punctuationChars.contains(lastChar)) {
-                        modifiedResult = " $result"
-                    }
+                    if (punctuationChars.contains(lastChar)) modifiedResult = " $result"
                 }
-
-                /*
-                if(!nextText.isNullOrBlank()) {
-                    val oldPunctuation = nextText?.first()
-                    val newPunctuation = result.last()
-
-                    if (punctuationChars.contains(oldPunctuation) && punctuationChars.contains(newPunctuation)) {
-                        it.deleteSurroundingText(0, 1)
-                    }
-                }
-                */
-
                 it.commitText(modifiedResult, 1)
             }
             onCancel()
         }
 
         override fun sendPartialResult(result: String): Boolean {
-            if(this@VoiceInputMethodService.currentInputConnection != null) {
+            return if (this@VoiceInputMethodService.currentInputConnection != null) {
                 this@VoiceInputMethodService.currentInputConnection.setComposingText(result, 1)
-                return true
-            } else {
-                return false
-            }
+                true
+            } else false
         }
 
-        override fun requestPermission() {
-            // We can't ask for permission from a service
-            // TODO: We could launch an activity and request it that way
-
-            permissionResultRejected()
-        }
+        override fun requestPermission() { permissionResultRejected() }
 
         @Composable
-        override fun Window(onClose: () -> Unit, allowClick: Boolean, onPauseVAD: (Boolean) -> Unit, onFinish: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+        override fun Window(
+            onClose: () -> Unit,
+            allowClick: Boolean,
+            onPauseVAD: (Boolean) -> Unit,
+            onFinish: () -> Unit,
+            content: @Composable ColumnScope.() -> Unit
+        ) {
             RecognizerInputMethodWindow(switchBack = onClose, onPauseVAD = onPauseVAD, onFinish = onFinish, allowClick = allowClick) {
                 content()
             }
@@ -289,73 +246,37 @@ class VoiceInputMethodService : InputMethodService(), LifecycleOwner, ViewModelS
 
     private fun setOwners() {
         val decorView = window.window?.decorView
-        if (decorView?.findViewTreeLifecycleOwner() == null) {
-            decorView?.setViewTreeLifecycleOwner(this)
-        }
-        if (decorView?.findViewTreeViewModelStoreOwner() == null) {
-            decorView?.setViewTreeViewModelStoreOwner(this)
-        }
-        if (decorView?.findViewTreeSavedStateRegistryOwner() == null) {
-            decorView?.setViewTreeSavedStateRegistryOwner(this)
-        }
-
+        if (decorView?.findViewTreeLifecycleOwner() == null) decorView?.setViewTreeLifecycleOwner(this)
+        if (decorView?.findViewTreeViewModelStoreOwner() == null) decorView?.setViewTreeViewModelStoreOwner(this)
+        if (decorView?.findViewTreeSavedStateRegistryOwner() == null) decorView?.setViewTreeSavedStateRegistryOwner(this)
         window.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     private var composeView: ComposeView? = null
 
     override fun onCreateInputView(): View {
-        // The input view is the main view where the user inputs text via keyclicks, handwriting,
-        // gestures, or in this case there is a voice input menu.
         composeView = ComposeView(this).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setParentCompositionContext(null)
-
             this@VoiceInputMethodService.setOwners()
         }
-
         updateNavigationBarVisibility()
         return composeView!!
     }
 
-    override fun onCreateCandidatesView(): View? {
-        // The candidates view shows potential word corrections or suggestions for the user to select.
-        // Return null, as the voice input does not need this.
-        return null
-    }
+    override fun onCreateCandidatesView(): View? = null
 
     private fun updateNavigationBarVisibility() {
-        if(SupportsNavbarExtension) {
-            window.window?.let { window ->
-                WindowCompat.setDecorFitsSystemWindows(window, false)
-            }
+        if (SupportsNavbarExtension) {
+            window.window?.let { WindowCompat.setDecorFitsSystemWindows(it, false) }
         }
     }
 
     private var needsInitialization = true
+
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
-
-        when (info.inputType and InputType.TYPE_MASK_CLASS) {
-            InputType.TYPE_CLASS_NUMBER -> {
-                // number
-            }
-            InputType.TYPE_CLASS_DATETIME -> {
-                // date time ??
-            }
-            InputType.TYPE_CLASS_PHONE -> {
-                // phone number
-                // could add whisper prompt like "My phone number is "
-            }
-            InputType.TYPE_CLASS_TEXT -> {
-                // text :)
-                if(info.inputType == InputType.TYPE_TEXT_VARIATION_PASSWORD) {
-                    // ...
-                }
-            }
-        }
-
-        if(needsInitialization) {
+        if (needsInitialization) {
             needsInitialization = false
             recognizer.reset()
             recognizer.init()
@@ -363,13 +284,11 @@ class VoiceInputMethodService : InputMethodService(), LifecycleOwner, ViewModelS
             println("Continuing recording, likely due to landscape/portrait switch")
             recognizer.refreshContent()
         }
-        // TODO: Idle state
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
         println("Finish input view")
         recognizer.reset()
-
         needsInitialization = true
     }
 
@@ -384,7 +303,6 @@ class VoiceInputMethodService : InputMethodService(), LifecycleOwner, ViewModelS
 
     override fun onDestroy() {
         super.onDestroy()
-
         println("Destroy")
         handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
     }

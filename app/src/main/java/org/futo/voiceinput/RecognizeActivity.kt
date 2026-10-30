@@ -37,13 +37,19 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.LifecycleCoroutineScope
 import androidx.lifecycle.lifecycleScope
 import org.futo.voiceinput.migration.scheduleModelMigrationJob
-import org.futo.voiceinput.settings.pages.ConditionalUnpaidNoticeInVoiceInputWindow
 import org.futo.voiceinput.theme.UixThemeAuto
-import org.futo.voiceinput.updates.scheduleUpdateCheckingJob
 
+// ConditionalUnpaidNoticeInVoiceInputWindow removed — no payment infrastructure.
+// scheduleUpdateCheckingJob removed — no update checker in this fork.
 
 @Composable
-fun RecognizeWindow(forceNoUnpaidNotice: Boolean = false, allowClick: Boolean = false, onClose: (() -> Unit)?, onPauseVAD: (Boolean) -> Unit = { }, onFinish: () -> Unit = { }, content: @Composable ColumnScope.() -> Unit) {
+fun RecognizeWindow(
+    allowClick: Boolean = false,
+    onClose: (() -> Unit)?,
+    onPauseVAD: (Boolean) -> Unit = { },
+    onFinish: () -> Unit = { },
+    content: @Composable ColumnScope.() -> Unit
+) {
     UixThemeAuto {
         Surface(
             modifier = Modifier
@@ -58,25 +64,18 @@ fun RecognizeWindow(forceNoUnpaidNotice: Boolean = false, allowClick: Boolean = 
 
             Column(modifier = Modifier.drawBehind {
                 with(icon) {
-                    translate(left = -icon.intrinsicSize.width/2, top = -icon.intrinsicSize.height/2) {
+                    translate(left = -icon.intrinsicSize.width / 2, top = -icon.intrinsicSize.height / 2) {
                         translate(left = size.width / 4, top = size.height / 3) {
                             draw(icon.intrinsicSize, colorFilter = ColorFilter.tint(bgIconTint))
                         }
                     }
                 }
-            }){
+            }) {
                 Box(modifier = Modifier.fillMaxWidth()) {
-                    if(!forceNoUnpaidNotice) {
-                        Box(modifier = Modifier.align(Alignment.CenterStart)) {
-                            ConditionalUnpaidNoticeInVoiceInputWindow(onClose)
-                        }
-                    }
-
+                    // Payment notice removed
                     Box(modifier = Modifier.align(Alignment.CenterEnd)) {
                         if (onClose != null) {
-                            IconButton(
-                                onClick = onClose
-                            ) {
+                            IconButton(onClick = onClose) {
                                 Icon(
                                     Icons.Default.Close,
                                     contentDescription = "Cancel",
@@ -104,64 +103,50 @@ fun RecognizeWindow(forceNoUnpaidNotice: Boolean = false, allowClick: Boolean = 
 @Preview
 @Composable
 fun RecognizeLoadingPreview() {
-    RecognizeWindow(onClose = { }) {
-        RecognizeLoadingCircle()
-    }
+    RecognizeWindow(onClose = { }) { RecognizeLoadingCircle() }
 }
 
 @Preview
 @Composable
 fun PreviewRecognizeViewLoaded() {
-    RecognizeWindow(onClose = { }) {
-        InnerRecognize()
-    }
+    RecognizeWindow(onClose = { }) { InnerRecognize() }
 }
+
 @Preview
 @Composable
 fun PreviewRecognizeViewNoMic() {
-    RecognizeWindow(onClose = { }) {
-        RecognizeMicError(openSettings = { })
-    }
+    RecognizeWindow(onClose = { }) { RecognizeMicError(openSettings = { }) }
 }
 
 class RecognizeActivity : ComponentActivity() {
     private val recognizer = object : RecognizerView() {
-        override val context: Context
-            get() = this@RecognizeActivity
-        override val lifecycleScope: LifecycleCoroutineScope
-            get() = this@RecognizeActivity.lifecycleScope
+        override val context: Context get() = this@RecognizeActivity
+        override val lifecycleScope: LifecycleCoroutineScope get() = this@RecognizeActivity.lifecycleScope
 
         override fun setContent(content: @Composable () -> Unit) {
             this@RecognizeActivity.setContent { content() }
         }
 
-        override fun onCancel() {
-            this@RecognizeActivity.onCancel()
-        }
-
-        override fun sendResult(result: String) {
-            this@RecognizeActivity.sendResult(result)
-        }
-
-        override fun sendPartialResult(result: String): Boolean {
-            return false
-        }
-
-        override fun requestPermission() {
-            this@RecognizeActivity.requestPermission()
-        }
-
-        override fun decodingStarted() {
-            
-        }
+        override fun onCancel() { this@RecognizeActivity.onCancel() }
+        override fun sendResult(result: String) { this@RecognizeActivity.sendResult(result) }
+        override fun sendPartialResult(result: String): Boolean = false
+        override fun requestPermission() { this@RecognizeActivity.requestPermission() }
+        override fun decodingStarted() {}
 
         @Composable
-        override fun Window(onClose: () -> Unit, allowClick: Boolean, onPauseVAD: (Boolean) -> Unit, onFinish: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+        override fun Window(
+            onClose: () -> Unit,
+            allowClick: Boolean,
+            onPauseVAD: (Boolean) -> Unit,
+            onFinish: () -> Unit,
+            content: @Composable ColumnScope.() -> Unit
+        ) {
             RecognizeWindow(onClose = onClose, onPauseVAD = onPauseVAD, onFinish = onFinish, allowClick = allowClick) {
                 content()
             }
         }
     }
+
     private fun onCancel() {
         setResult(RESULT_CANCELED, null)
         finish()
@@ -171,33 +156,25 @@ class RecognizeActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         recognizer.reset()
         recognizer.init()
-        scheduleUpdateCheckingJob(applicationContext)
+        // scheduleUpdateCheckingJob intentionally omitted
         scheduleModelMigrationJob(applicationContext)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     override fun onDestroy() {
         super.onDestroy()
-
         recognizer.reset()
     }
 
     private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-        if(it){
-            recognizer.permissionResultGranted()
-        } else {
-            recognizer.permissionResultRejected()
-        }
+        if (it) recognizer.permissionResultGranted() else recognizer.permissionResultRejected()
     }
-    private fun requestPermission() {
-        permission.launch(Manifest.permission.RECORD_AUDIO)
-    }
+
+    private fun requestPermission() { permission.launch(Manifest.permission.RECORD_AUDIO) }
 
     private fun sendResult(result: String) {
         val returnIntent = Intent()
-
-        val results = listOf(result)
-        returnIntent.putStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS, ArrayList(results))
+        returnIntent.putStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS, ArrayList(listOf(result)))
         returnIntent.putExtra(RecognizerIntent.EXTRA_CONFIDENCE_SCORES, floatArrayOf(1.0f))
         setResult(RESULT_OK, returnIntent)
         finish()

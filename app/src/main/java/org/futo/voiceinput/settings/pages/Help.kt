@@ -34,7 +34,6 @@ import org.futo.voiceinput.settings.Tip
 import org.futo.voiceinput.settings.openImeOptions
 import org.futo.voiceinput.theme.Typography
 
-
 @Composable
 @Preview
 fun HelpScreen(navController: NavHostController = rememberNavController()) {
@@ -45,12 +44,7 @@ fun HelpScreen(navController: NavHostController = rememberNavController()) {
     val context = LocalContext.current
     val antiConfusionText = stringResource(R.string.just_a_demonstration)
     val showAntiConfusionToast = {
-        val toast = Toast.makeText(
-            context,
-            antiConfusionText,
-            Toast.LENGTH_SHORT
-        )
-        toast.show()
+        Toast.makeText(context, antiConfusionText, Toast.LENGTH_SHORT).show()
     }
 
     ScrollableList {
@@ -58,9 +52,11 @@ fun HelpScreen(navController: NavHostController = rememberNavController()) {
 
         textItem(stringResource(R.string.help_paragraph_1))
         textItem(stringResource(R.string.help_paragraph_2))
+
         Column(modifier = Modifier.fillMaxWidth()) {
             Box(modifier = Modifier.align(CenterHorizontally)) {
-                RecognizeWindow(onClose = showAntiConfusionToast, forceNoUnpaidNotice = true) {
+                // forceNoUnpaidNotice removed — payment infrastructure stripped from this fork
+                RecognizeWindow(onClose = showAntiConfusionToast) {
                     Text(
                         stringResource(R.string.voice_input_will_look_like_this),
                         modifier = Modifier.align(CenterHorizontally),
@@ -69,9 +65,7 @@ fun HelpScreen(navController: NavHostController = rememberNavController()) {
                     Text(
                         stringResource(R.string.look_for_the_big_off_center_futo_logo_in_the_background),
                         style = Typography.bodyMedium,
-                        modifier = Modifier
-                            .padding(2.dp, 4.dp)
-                            .align(CenterHorizontally),
+                        modifier = Modifier.padding(2.dp, 4.dp).align(CenterHorizontally),
                         textAlign = TextAlign.Center
                     )
                 }
@@ -82,7 +76,7 @@ fun HelpScreen(navController: NavHostController = rememberNavController()) {
 
         Column(modifier = Modifier.fillMaxWidth()) {
             Box(modifier = Modifier.align(CenterHorizontally)) {
-                RecognizeWindow(onClose = showAntiConfusionToast, forceNoUnpaidNotice = true) {
+                RecognizeWindow(onClose = showAntiConfusionToast) {
                     IconButton(
                         onClick = showAntiConfusionToast,
                         modifier = Modifier.align(CenterHorizontally)
@@ -98,14 +92,13 @@ fun HelpScreen(navController: NavHostController = rememberNavController()) {
                     Text(
                         stringResource(R.string.once_you_re_done_talking_you_can_hit_the_microphone_button_to_stop),
                         style = Typography.bodyMedium,
-                        modifier = Modifier
-                            .padding(2.dp, 4.dp)
-                            .align(CenterHorizontally),
+                        modifier = Modifier.padding(2.dp, 4.dp).align(CenterHorizontally),
                         textAlign = TextAlign.Center
                     )
                 }
             }
         }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         textItem(stringResource(R.string.help_paragraph_3))
@@ -158,7 +151,6 @@ fun HelpScreen(navController: NavHostController = rememberNavController()) {
         }
 
         Spacer(modifier = Modifier.height(32.dp))
-
 
         textItem(stringResource(R.string.help_with_email))
         ShareFeedbackOption()

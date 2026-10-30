@@ -4,8 +4,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -17,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -47,15 +46,13 @@ import org.futo.voiceinput.settings.getSettingBlocking
 import org.futo.voiceinput.settings.useDataStore
 import org.futo.voiceinput.startModelPickerActivity
 
-// startModelDownloadActivity replaced by startModelPickerActivity — no network in this fork.
-
 @Composable
 fun modelsSubtitle(): String? {
-    val (languages, _)               = useDataStore(LANGUAGE_TOGGLES)
+    val (languages, _)                 = useDataStore(LANGUAGE_TOGGLES)
     val (useLanguageSpecificModels, _) = useDataStore(USE_LANGUAGE_SPECIFIC_MODELS)
-    val (multilingual, _)            = useDataStore(ENABLE_MULTILINGUAL)
-    val (englishIdxActual, _)        = useDataStore(ENGLISH_MODEL_INDEX)
-    val (multilingualIdxActual, _)   = useDataStore(MULTILINGUAL_MODEL_INDEX)
+    val (multilingual, _)              = useDataStore(ENABLE_MULTILINGUAL)
+    val (englishIdxActual, _)          = useDataStore(ENGLISH_MODEL_INDEX)
+    val (multilingualIdxActual, _)     = useDataStore(MULTILINGUAL_MODEL_INDEX)
 
     val multilingualIdx = if (multilingual) multilingualIdxActual else MULTILINGUAL_MODEL_INDEX.default
     val englishIdx = if ((!multilingual) || (languages.contains("en") && useLanguageSpecificModels)) {
@@ -64,8 +61,8 @@ fun modelsSubtitle(): String? {
         ENGLISH_MODEL_INDEX.default
     }
 
-    val totalDiff = (englishIdx - ENGLISH_MODEL_INDEX.default) + (multilingualIdx - MULTILINGUAL_MODEL_INDEX.default)
-    val usePlural = (englishIdx != ENGLISH_MODEL_INDEX.default) && (multilingualIdx != MULTILINGUAL_MODEL_INDEX.default)
+    val totalDiff  = (englishIdx - ENGLISH_MODEL_INDEX.default) + (multilingualIdx - MULTILINGUAL_MODEL_INDEX.default)
+    val usePlural  = (englishIdx != ENGLISH_MODEL_INDEX.default) && (multilingualIdx != MULTILINGUAL_MODEL_INDEX.default)
 
     return when {
         totalDiff < 0 -> if (usePlural) stringResource(R.string.using_smaller_models_accuracy_may_be_worse)
@@ -108,15 +105,15 @@ fun ModelsScreen(
     settingsViewModel: SettingsViewModel = viewModel(),
     navController: NavHostController = rememberNavController()
 ) {
-    val (useMultilingual, _)         = useDataStore(ENABLE_MULTILINGUAL)
-    val englishModelIndex            = useDataStore(ENGLISH_MODEL_INDEX)
-    val multilingualModelIndex       = useDataStore(MULTILINGUAL_MODEL_INDEX)
-    val (languages, _)               = useDataStore(LANGUAGE_TOGGLES)
-    val (useLanguageSpecificModels, _) = useDataStore(USE_LANGUAGE_SPECIFIC_MODELS)
-    val context                      = LocalContext.current
-    val needsUpdate                  = NeedsMigration()
-    val wasMigrated                  = useDataStore(MODELS_MIGRATED)
-    val dismissMigrationTip          = useDataStore(DISMISS_MIGRATION_TIP)
+    val (useMultilingual, _)             = useDataStore(ENABLE_MULTILINGUAL)
+    val englishModelIndex                = useDataStore(ENGLISH_MODEL_INDEX)
+    val multilingualModelIndex           = useDataStore(MULTILINGUAL_MODEL_INDEX)
+    val (languages, _)                   = useDataStore(LANGUAGE_TOGGLES)
+    val (useLanguageSpecificModels, _)   = useDataStore(USE_LANGUAGE_SPECIFIC_MODELS)
+    val context                          = LocalContext.current
+    val needsUpdate                      = NeedsMigration()
+    val wasMigrated                      = useDataStore(MODELS_MIGRATED)
+    val dismissMigrationTip              = useDataStore(DISMISS_MIGRATION_TIP)
 
     ScrollableList {
         ScreenTitle(stringResource(R.string.model_options), showBack = true, navController = navController)
@@ -127,14 +124,16 @@ fun ModelsScreen(
             Tip(stringResource(R.string.new_model_features_tip), onDismiss = { dismissMigrationTip.setValue(true) })
         }
 
-        // ── Model picker button ────────────────────────────────────────────
-        // Replaces the old automatic download trigger.
+        // Model picker button — replaces the old automatic download trigger
         Button(
             onClick = { context.startModelPickerActivity() },
             modifier = Modifier.fillMaxWidth().padding(8.dp, 4.dp)
         ) {
-            Icon(Icons.Default.FolderOpen, contentDescription = null)
-            Spacer(Modifier.padding(4.dp))
+            Icon(
+                painter = painterResource(R.drawable.cpu),
+                contentDescription = null,
+                modifier = androidx.compose.ui.Modifier.padding(end = 8.dp)
+            )
             Text(stringResource(R.string.model_manager))
         }
 

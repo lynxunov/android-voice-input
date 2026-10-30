@@ -17,7 +17,7 @@ dependencyResolutionManagement {
     }
 }
 
-include ":dep:futopay:android:app"
+// dep:futopay removed — no payment infrastructure in this fork.
 
 rootProject.name = "VoiceInput"
 include ':app'
