@@ -12,28 +12,18 @@ licenseList {
 
 android {
     namespace 'org.futo.voiceinput'
-
-    // API 36 = Android 16 (fully stable released platform).
-    // Runs without issue on Android 17 (API 37) devices.
-    // Bump to 37 once platforms;android-37 stable is released by Google.
     compileSdk 36
 
     defaultConfig {
         applicationId "com.lynxunov.voiceinput"
         minSdk 24
         targetSdk 36
-        versionCode 32
-        versionName "1.3.7-lynx"
+        versionCode 33
+        versionName "1.4.0-lynx"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables {
-            useSupportLibrary true
-        }
-        externalNativeBuild {
-            cmake {
-                cppFlags '-O3'
-            }
-        }
+        vectorDrawables { useSupportLibrary true }
+        externalNativeBuild { cmake { cppFlags '-O3' } }
     }
 
     final def keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -57,13 +47,11 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig releaseSigning
         }
-
         buildTypes.each {
-            // ACRA fully removed — no crash reporting, no telemetry
-            it.buildConfigField "boolean", "ENABLE_ACRA",    "false"
-            it.buildConfigField "String",  "ACRA_URL",       "null"
-            it.buildConfigField "String",  "ACRA_USER",      "null"
-            it.buildConfigField "String",  "ACRA_PASSWORD",  "null"
+            it.buildConfigField "boolean", "ENABLE_ACRA",   "false"
+            it.buildConfigField "String",  "ACRA_URL",      "null"
+            it.buildConfigField "String",  "ACRA_USER",     "null"
+            it.buildConfigField "String",  "ACRA_PASSWORD", "null"
         }
     }
 
@@ -71,30 +59,19 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
-    kotlinOptions {
-        jvmTarget = '1.8'
-    }
+    kotlinOptions { jvmTarget = '1.8' }
     buildFeatures {
         compose true
         viewBinding true
         mlModelBinding true
         buildConfig true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion '1.4.6'
-    }
-    packagingOptions {
-        resources {
-            excludes += '/META-INF/{AL2.0,LGPL2.1}'
-        }
-    }
+    composeOptions { kotlinCompilerExtensionVersion '1.4.6' }
+    packagingOptions { resources { excludes += '/META-INF/{AL2.0,LGPL2.1}' } }
 
-    // Only the fDroid flavor is built in this fork.
     flavorDimensions "version"
     productFlavors {
-        fDroid {
-            dimension "version"
-        }
+        fDroid { dimension "version" }
     }
 
     sourceSets {
@@ -116,6 +93,8 @@ android {
 }
 
 dependencies {
+    implementation project(':shared')
+
     implementation 'androidx.core:core-ktx:1.10.1'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.1'
     implementation 'androidx.lifecycle:lifecycle-runtime:2.6.1'
@@ -133,9 +112,7 @@ dependencies {
     implementation 'androidx.navigation:navigation-compose:2.6.0'
 
     implementation(name: 'vad-release', ext: 'aar')
-
     implementation 'androidx.datastore:datastore-preferences:1.0.0'
-
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1'
 
     testImplementation 'junit:junit:4.13.2'
@@ -146,8 +123,5 @@ dependencies {
     debugImplementation 'androidx.compose.ui:ui-tooling'
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
 
-    // Removed from this fork:
-    //   OkHttp       — no network downloads
-    //   ACRA         — no crash reporting / telemetry
-    //   Play Billing — no payments
+    // Removed: OkHttp, ACRA, Play Billing
 }
