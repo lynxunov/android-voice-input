@@ -1,8 +1,8 @@
 plugins {
     id 'com.android.application'
     id 'io.github.jmatsu.license-list' version '0.8.1'
-    id 'org.jetbrains.kotlin.android' version '2.1.0'
-    id 'org.jetbrains.kotlin.plugin.serialization' version '2.1.0'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.serialization'
     id 'org.jetbrains.kotlin.plugin.compose'
 }
 
