@@ -132,7 +132,8 @@ private fun BoxScope.BluetoothToggleIcon(device: MutableState<MicrophoneDeviceSt
                         style = if (device.value.bluetoothActive) Fill else Stroke(width = 4.0f))
                 }
                 .clearAndSetSemantics {
-                    this.text = AnnotatedString("Use bluetooth mic")
+                    // text expects an AnnotatedString; construct it explicitly via the top-level builder function
+                    this.text = AnnotatedString(text = "Use bluetooth mic")
                     this.role = Role.Switch
                     this.toggleableState = ToggleableState(device.value.bluetoothActive)
                 },
