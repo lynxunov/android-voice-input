@@ -2,89 +2,88 @@ package org.futo.voiceinput.models
 
 import android.content.Context
 import android.net.Uri
-import androidx.datastore.preferences.core.Preferences
 import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_0
 import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_1
 import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_2
+import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_3
+import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_4
+import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_5
+import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_6
+import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_7
+import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_8
+import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_9
 import org.futo.voiceinput.settings.MODEL_URI_MULTILINGUAL_0
 import org.futo.voiceinput.settings.MODEL_URI_MULTILINGUAL_1
 import org.futo.voiceinput.settings.MODEL_URI_MULTILINGUAL_2
+import org.futo.voiceinput.settings.MODEL_URI_MULTILINGUAL_3
 import org.futo.voiceinput.settings.SettingsKey
 import org.futo.voiceinput.settings.getSetting
 import org.futo.voiceinput.settings.setSetting
+import org.futo.voiceinput.shared.ENGLISH_MODELS
+import org.futo.voiceinput.shared.MULTILINGUAL_MODELS
 
 /**
- * Maps each model slot to its DataStore key.
- * English slots 0-2 correspond to ENGLISH_MODELS indices.
- * Multilingual slots 0-2 correspond to MULTILINGUAL_MODELS indices.
+ * One slot per model in ENGLISH_MODELS and MULTILINGUAL_MODELS.
+ * Index matches the list position exactly.
  */
-enum class ModelSlot(val key: SettingsKey<String>, val displayName: String) {
-    ENGLISH_0(MODEL_URI_ENGLISH_0,      "English – tiny (39M)"),
-    ENGLISH_1(MODEL_URI_ENGLISH_1,      "English – base (74M)"),
-    ENGLISH_2(MODEL_URI_ENGLISH_2,      "English – small (244M)"),
-    MULTILINGUAL_0(MODEL_URI_MULTILINGUAL_0, "Multilingual – tiny (39M)"),
-    MULTILINGUAL_1(MODEL_URI_MULTILINGUAL_1, "Multilingual – base (74M)"),
-    MULTILINGUAL_2(MODEL_URI_MULTILINGUAL_2, "Multilingual – small (244M)");
+enum class ModelSlot(val key: SettingsKey<String>, val isEnglish: Boolean) {
+    // English — matches ENGLISH_MODELS indices 0..9
+    ENGLISH_0(MODEL_URI_ENGLISH_0, true),
+    ENGLISH_1(MODEL_URI_ENGLISH_1, true),
+    ENGLISH_2(MODEL_URI_ENGLISH_2, true),
+    ENGLISH_3(MODEL_URI_ENGLISH_3, true),
+    ENGLISH_4(MODEL_URI_ENGLISH_4, true),
+    ENGLISH_5(MODEL_URI_ENGLISH_5, true),
+    ENGLISH_6(MODEL_URI_ENGLISH_6, true),
+    ENGLISH_7(MODEL_URI_ENGLISH_7, true),
+    ENGLISH_8(MODEL_URI_ENGLISH_8, true),
+    ENGLISH_9(MODEL_URI_ENGLISH_9, true),
+    // Multilingual — matches MULTILINGUAL_MODELS indices 0..3
+    MULTILINGUAL_0(MODEL_URI_MULTILINGUAL_0, false),
+    MULTILINGUAL_1(MODEL_URI_MULTILINGUAL_1, false),
+    MULTILINGUAL_2(MODEL_URI_MULTILINGUAL_2, false),
+    MULTILINGUAL_3(MODEL_URI_MULTILINGUAL_3, false);
 
-    val isEnglish: Boolean get() = this.ordinal <= 2
+    val displayName: String get() = when {
+        isEnglish -> ENGLISH_MODELS.getOrNull(ordinal)?.let { ctx ->
+            // Use the string res ID converted to a slot-local name
+            "English slot $ordinal"
+        } ?: "English slot $ordinal"
+        else -> "Multilingual slot ${ordinal - 10}"
+    }
+
+    val modelIndex: Int get() = if (isEnglish) ordinal else ordinal - 10
 }
 
-/**
- * Persists a SAF URI for a model slot.
- *
- * Callers MUST have already called:
- *   context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
- * before calling this, so the permission survives reboots.
- */
-suspend fun Context.setModelUri(slot: ModelSlot, uri: Uri) {
-    setSetting(slot.key, uri.toString())
-}
+suspend fun Context.setModelUri(slot: ModelSlot, uri: Uri) = setSetting(slot.key, uri.toString())
+suspend fun Context.clearModelUri(slot: ModelSlot) = setSetting(slot.key, "")
 
-/**
- * Clears the URI for a model slot (marks it as not configured).
- */
-suspend fun Context.clearModelUri(slot: ModelSlot) {
-    setSetting(slot.key, "")
-}
-
-/**
- * Returns the Uri for a model slot, or null if not configured.
- */
 suspend fun Context.getModelUri(slot: ModelSlot): Uri? {
     val raw = getSetting(slot.key)
     return if (raw.isBlank()) null else Uri.parse(raw)
 }
 
-/**
- * Returns true if the URI for this slot is configured AND the system still
- * holds a persisted read permission for it (i.e. the file is still accessible).
- */
 suspend fun Context.isModelAvailable(slot: ModelSlot): Boolean {
     val uri = getModelUri(slot) ?: return false
-    return contentResolver.persistedUriPermissions.any {
-        it.uri == uri && it.isReadPermission
-    }
+    return contentResolver.persistedUriPermissions.any { it.uri == uri && it.isReadPermission }
 }
 
-/**
- * Opens a ParcelFileDescriptor for reading the model file at the given URI.
- * Caller is responsible for closing the descriptor.
- * Returns null if the URI is not set or not accessible.
- */
-suspend fun Context.openModelFd(slot: ModelSlot): android.os.ParcelFileDescriptor? {
+suspend fun Context.allModelSlotStatus(): Map<ModelSlot, Boolean> =
+    ModelSlot.values().associateWith { isModelAvailable(it) }
+
+/** Returns a ModelSafUri for the given slot, or null if not configured. */
+suspend fun Context.toModelSafUri(slot: ModelSlot): org.futo.voiceinput.shared.types.ModelSafUri? {
     val uri = getModelUri(slot) ?: return null
-    return try {
-        contentResolver.openFileDescriptor(uri, "r")
-    } catch (e: Exception) {
-        android.util.Log.e("ModelUriStore", "Failed to open model fd for $slot: ${e.message}")
-        null
-    }
-}
-
-/**
- * Returns a map of slot → isAvailable for all slots.
- * Used by the UI to show which models are configured.
- */
-suspend fun Context.allModelSlotStatus(): Map<ModelSlot, Boolean> {
-    return ModelSlot.values().associateWith { isModelAvailable(it) }
+    if (!contentResolver.persistedUriPermissions.any { it.uri == uri && it.isReadPermission }) return null
+    val nameRes = if (slot.isEnglish)
+        ENGLISH_MODELS.getOrNull(slot.modelIndex)?.name ?: org.futo.voiceinput.R.string.model_manager
+    else
+        MULTILINGUAL_MODELS.getOrNull(slot.modelIndex)?.name ?: org.futo.voiceinput.R.string.model_manager
+    return org.futo.voiceinput.shared.types.ModelSafUri(
+        name = nameRes,
+        uri = uri,
+        caps = if (slot.isEnglish) ENGLISH_MODELS.getOrNull(slot.modelIndex)?.caps
+               else MULTILINGUAL_MODELS.getOrNull(slot.modelIndex)?.caps
+               ?: org.futo.voiceinput.shared.WhisperEnCapabilities
+    )
 }

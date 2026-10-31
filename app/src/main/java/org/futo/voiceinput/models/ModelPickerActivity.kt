@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,12 +46,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.futo.voiceinput.R
 import org.futo.voiceinput.openURI
+import org.futo.voiceinput.shared.ENGLISH_MODELS
+import org.futo.voiceinput.shared.MODEL_DOWNLOAD_INFO_URL
+import org.futo.voiceinput.shared.MULTILINGUAL_MODELS
 import org.futo.voiceinput.theme.UixThemeAuto
 
-/**
- * Replaces DownloadActivity — no network access.
- * Models are opened in-place via SAF; a persisted URI permission survives reboots.
- */
 class ModelPickerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,26 +67,22 @@ class ModelPickerActivity : ComponentActivity() {
 @Composable
 private fun ModelPickerScreen() {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var slotStatus by remember { mutableStateOf<Map<ModelSlot, Boolean>>(emptyMap()) }
     var pendingSlot by remember { mutableStateOf<ModelSlot?>(null) }
-    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         slotStatus = withContext(Dispatchers.IO) { context.allModelSlotStatus() }
     }
 
-    val filePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         val slot = pendingSlot ?: return@rememberLauncherForActivityResult
         pendingSlot = null
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             withContext(Dispatchers.IO) {
                 try {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
+                    context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 } catch (e: SecurityException) {
                     android.util.Log.w("ModelPicker", "Could not persist URI permission: ${e.message}")
                 }
@@ -97,88 +93,63 @@ private fun ModelPickerScreen() {
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Model Manager", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.model_manager), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
 
         ElevatedCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("About models", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "This app has no internet access. Download models externally and pick them here. " +
+                    "This app has no internet access. Download models externally, then pick each file below. " +
                     "Files are read in-place — nothing is copied to app storage.",
                     style = MaterialTheme.typography.bodyMedium
                 )
-                Button(
-                    onClick = { context.openURI(MODEL_DOWNLOAD_URL, newTask = true) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                Button(onClick = { context.openURI(MODEL_DOWNLOAD_INFO_URL, newTask = true) }, modifier = Modifier.fillMaxWidth()) {
                     Text("Open model download page ↗")
                 }
-                Text(
-                    "Download the .bin files, then use the buttons below to assign each one.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
 
         SectionHeader("English Models")
-        ModelSlot.values().filter { it.isEnglish }.forEach { slot ->
+        val englishSlots = ModelSlot.values().filter { it.isEnglish }
+        englishSlots.forEachIndexed { idx, slot ->
+            val model = ENGLISH_MODELS.getOrNull(idx)
             ModelSlotRow(
-                slot = slot,
+                name = model?.let { stringResource(it.name) } ?: "English slot $idx",
                 isAvailable = slotStatus[slot] ?: false,
-                onPickClicked = {
-                    pendingSlot = slot
-                    filePicker.launch(arrayOf("application/octet-stream", "*/*"))
-                },
+                onPickClicked = { pendingSlot = slot; filePicker.launch(arrayOf("application/octet-stream", "*/*")) },
                 onClearClicked = {
-                    scope.launch {
-                        withContext(Dispatchers.IO) {
-                            context.clearModelUri(slot)
-                            slotStatus = context.allModelSlotStatus()
-                        }
-                    }
+                    scope.launch { withContext(Dispatchers.IO) { context.clearModelUri(slot); slotStatus = context.allModelSlotStatus() } }
                 }
             )
         }
 
         SectionHeader("Multilingual Models")
-        ModelSlot.values().filter { !it.isEnglish }.forEach { slot ->
+        val multiSlots = ModelSlot.values().filter { !it.isEnglish }
+        multiSlots.forEachIndexed { idx, slot ->
+            val model = MULTILINGUAL_MODELS.getOrNull(idx)
             ModelSlotRow(
-                slot = slot,
+                name = model?.let { stringResource(it.name) } ?: "Multilingual slot $idx",
                 isAvailable = slotStatus[slot] ?: false,
-                onPickClicked = {
-                    pendingSlot = slot
-                    filePicker.launch(arrayOf("application/octet-stream", "*/*"))
-                },
+                onPickClicked = { pendingSlot = slot; filePicker.launch(arrayOf("application/octet-stream", "*/*")) },
                 onClearClicked = {
-                    scope.launch {
-                        withContext(Dispatchers.IO) {
-                            context.clearModelUri(slot)
-                            slotStatus = context.allModelSlotStatus()
-                        }
-                    }
+                    scope.launch { withContext(Dispatchers.IO) { context.clearModelUri(slot); slotStatus = context.allModelSlotStatus() } }
                 }
             )
         }
 
         ElevatedCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Expected file names", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text("Notes", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "English tiny   (built-in): tiny_en_acft_q8_0.bin.not.tflite\n" +
-                    "English base:              base_en_acft_q8_0.bin\n" +
-                    "English small:             small_en_acft_q8_0.bin\n" +
-                    "Multi tiny:                tiny_acft_q8_0.bin\n" +
-                    "Multi base:                base_acft_q8_0.bin\n" +
-                    "Multi small:               small_acft_q8_0.bin",
+                    "• Pick one English model and/or one Multilingual model to get started.\n" +
+                    "• asr4all models (streaming) give the fastest results for English.\n" +
+                    "• Whisper multilingual models support language detection and switching.\n" +
+                    "• Model files use the .gguf or .bin extension.",
                     style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace
+                    fontFamily = FontFamily.Default
                 )
             }
         }
@@ -189,58 +160,33 @@ private fun ModelPickerScreen() {
 
 @Composable
 private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 4.dp)
-    )
+    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp))
 }
 
 @Composable
-private fun ModelSlotRow(
-    slot: ModelSlot,
-    isAvailable: Boolean,
-    onPickClicked: () -> Unit,
-    onClearClicked: () -> Unit
-) {
+private fun ModelSlotRow(name: String, isAvailable: Boolean, onPickClicked: () -> Unit, onClearClicked: () -> Unit) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Icon(
-                painter = painterResource(
-                    // alert_circle for not-ready; activity (checkmark-like) for ready
-                    if (isAvailable) R.drawable.activity else R.drawable.alert_circle
-                ),
+                painter = painterResource(if (isAvailable) R.drawable.activity else R.drawable.alert_circle),
                 contentDescription = null,
                 tint = if (isAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(22.dp)
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text(slot.displayName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                 Text(
                     if (isAvailable) "Ready" else "Not configured",
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (isAvailable) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            if (isAvailable) {
-                TextButton(onClick = onClearClicked) { Text("Clear") }
-            }
+            if (isAvailable) TextButton(onClick = onClearClicked) { Text("Clear") }
             FilledTonalIconButton(onClick = onPickClicked) {
-                Icon(
-                    painter = painterResource(R.drawable.cpu),
-                    contentDescription = "Pick file",
-                    modifier = Modifier.size(18.dp)
-                )
+                Icon(painter = painterResource(R.drawable.cpu), contentDescription = "Pick file", modifier = Modifier.size(18.dp))
             }
         }
     }
 }
-
-const val MODEL_DOWNLOAD_URL = "https://github.com/futo-org/voice-input-models/blob/main/README.md"
