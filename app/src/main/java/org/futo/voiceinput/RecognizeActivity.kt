@@ -11,7 +11,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,29 +25,34 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.LifecycleCoroutineScope
 import androidx.lifecycle.lifecycleScope
 import org.futo.voiceinput.migration.scheduleModelMigrationJob
 import org.futo.voiceinput.theme.UixThemeAuto
 
-// ConditionalUnpaidNoticeInVoiceInputWindow removed — no payment infrastructure.
-// scheduleUpdateCheckingJob removed — no update checker in this fork.
-
+/**
+ * Wraps the shared RecognizerView's Content() in the app's own themed bubble chrome.
+ * Rendering of the recording bubble/loading state itself is handled entirely by
+ * shared.RecognizerView — this just supplies the outer card, close button, and background logo.
+ */
 @Composable
 fun RecognizeWindow(
     allowClick: Boolean = false,
     onClose: (() -> Unit)?,
     onPauseVAD: (Boolean) -> Unit = { },
     onFinish: () -> Unit = { },
-    content: @Composable ColumnScope.() -> Unit
+    content: @Composable () -> Unit
 ) {
     UixThemeAuto {
         Surface(
@@ -72,50 +76,22 @@ fun RecognizeWindow(
                 }
             }) {
                 Box(modifier = Modifier.fillMaxWidth()) {
-                    // Payment notice removed
                     Box(modifier = Modifier.align(Alignment.CenterEnd)) {
                         if (onClose != null) {
                             IconButton(onClick = onClose) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = "Cancel",
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
+                                Icon(Icons.Default.Close, contentDescription = "Cancel", tint = MaterialTheme.colorScheme.onSurface)
                             }
                         } else {
                             Spacer(modifier = Modifier.height(32.dp))
                         }
                     }
                 }
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(0.dp, 0.dp, 0.dp, 40.dp)
-                ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(0.dp, 0.dp, 0.dp, 40.dp)) {
                     content()
                 }
             }
         }
     }
-}
-
-@Preview
-@Composable
-fun RecognizeLoadingPreview() {
-    RecognizeWindow(onClose = { }) { RecognizeLoadingCircle() }
-}
-
-@Preview
-@Composable
-fun PreviewRecognizeViewLoaded() {
-    RecognizeWindow(onClose = { }) { InnerRecognize() }
-}
-
-@Preview
-@Composable
-fun PreviewRecognizeViewNoMic() {
-    RecognizeWindow(onClose = { }) { RecognizeMicError(openSettings = { }) }
 }
 
 class RecognizeActivity : ComponentActivity() {
@@ -124,26 +100,22 @@ class RecognizeActivity : ComponentActivity() {
         override val lifecycleScope: LifecycleCoroutineScope get() = this@RecognizeActivity.lifecycleScope
 
         override fun setContent(content: @Composable () -> Unit) {
-            this@RecognizeActivity.setContent { content() }
+            // No-op: this app wraps Content() via renderWithChrome() below instead.
         }
 
         override fun onCancel() { this@RecognizeActivity.onCancel() }
         override fun sendResult(result: String) { this@RecognizeActivity.sendResult(result) }
         override fun sendPartialResult(result: String): Boolean = false
-        override fun requestPermission() { this@RecognizeActivity.requestPermission() }
+
+        override fun requestPermission(onGranted: () -> Unit, onRejected: () -> Unit) {
+            this@RecognizeActivity.requestPermission(onGranted, onRejected)
+        }
+
         override fun decodingStarted() {}
 
-        @Composable
-        override fun Window(
-            onClose: () -> Unit,
-            allowClick: Boolean,
-            onPauseVAD: (Boolean) -> Unit,
-            onFinish: () -> Unit,
-            content: @Composable ColumnScope.() -> Unit
-        ) {
-            RecognizeWindow(onClose = onClose, onPauseVAD = onPauseVAD, onFinish = onFinish, allowClick = allowClick) {
-                content()
-            }
+        override fun modelNotFoundOpenPicker() {
+            this@RecognizeActivity.startModelPickerActivity()
+            onCancel()
         }
     }
 
@@ -152,11 +124,25 @@ class RecognizeActivity : ComponentActivity() {
         finish()
     }
 
+    private fun renderWithChrome() {
+        setContent {
+            val allowClick by remember { mutableStateOf(true) }
+            RecognizeWindow(
+                allowClick = allowClick,
+                onClose = { recognizer.cancel() },
+                onPauseVAD = { recognizer.inhibitAutoStop(it) },
+                onFinish = { recognizer.finish() }
+            ) {
+                recognizer.Content()
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         recognizer.reset()
         recognizer.init()
-        // scheduleUpdateCheckingJob intentionally omitted
+        renderWithChrome()
         scheduleModelMigrationJob(applicationContext)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
@@ -166,11 +152,16 @@ class RecognizeActivity : ComponentActivity() {
         recognizer.reset()
     }
 
-    private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-        if (it) recognizer.permissionResultGranted() else recognizer.permissionResultRejected()
+    private var pendingPermissionCallback: ((Boolean) -> Unit)? = null
+    private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        pendingPermissionCallback?.invoke(granted)
+        pendingPermissionCallback = null
     }
 
-    private fun requestPermission() { permission.launch(Manifest.permission.RECORD_AUDIO) }
+    private fun requestPermission(onGranted: () -> Unit, onRejected: () -> Unit) {
+        pendingPermissionCallback = { granted -> if (granted) onGranted() else onRejected() }
+        permission.launch(Manifest.permission.RECORD_AUDIO)
+    }
 
     private fun sendResult(result: String) {
         val returnIntent = Intent()
