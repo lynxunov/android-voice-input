@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,10 +26,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -45,6 +42,9 @@ import org.futo.voiceinput.theme.UixThemeAuto
  * Wraps the shared RecognizerView's Content() in the app's own themed bubble chrome.
  * Rendering of the recording bubble/loading state itself is handled entirely by
  * shared.RecognizerView — this just supplies the outer card, close button, and background logo.
+ *
+ * The content lambda keeps its ColumnScope receiver so callers (e.g. Help.kt) can use
+ * Modifier.align() inside it.
  */
 @Composable
 fun RecognizeWindow(
@@ -52,7 +52,7 @@ fun RecognizeWindow(
     onClose: (() -> Unit)?,
     onPauseVAD: (Boolean) -> Unit = { },
     onFinish: () -> Unit = { },
-    content: @Composable () -> Unit
+    content: @Composable ColumnScope.() -> Unit
 ) {
     UixThemeAuto {
         Surface(
@@ -126,9 +126,8 @@ class RecognizeActivity : ComponentActivity() {
 
     private fun renderWithChrome() {
         setContent {
-            val allowClick by remember { mutableStateOf(true) }
             RecognizeWindow(
-                allowClick = allowClick,
+                allowClick = true,
                 onClose = { recognizer.cancel() },
                 onPauseVAD = { recognizer.inhibitAutoStop(it) },
                 onFinish = { recognizer.finish() }
