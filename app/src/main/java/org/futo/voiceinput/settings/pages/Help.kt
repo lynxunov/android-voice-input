@@ -26,48 +26,74 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import org.futo.voiceinput.R
 import org.futo.voiceinput.RecognizeWindow
-import org.futo.voiceinput.settings.NavigationItem
-import org.futo.voiceinput.settings.NavigationItemStyle
+import org.futo.voiceinput.settings.KeyboardVoiceInputConfigState
 import org.futo.voiceinput.settings.ScreenTitle
-import org.futo.voiceinput.settings.ScrollableList
+import org.futo.voiceinput.settings.SettingsRootList
 import org.futo.voiceinput.settings.Tip
+import org.futo.voiceinput.settings.TipKind
+import org.futo.voiceinput.settings.openFUTOKeyboardSettings
 import org.futo.voiceinput.settings.openImeOptions
+import org.futo.voiceinput.settings.useDefaultIME
+import org.futo.voiceinput.settings.useIsConfiguredInFUTOKeyboard
 import org.futo.voiceinput.theme.Typography
+
 
 @Composable
 @Preview
 fun HelpScreen(navController: NavHostController = rememberNavController()) {
     val textItem: @Composable (text: String) -> Unit = { text ->
-        Text(text, style = Typography.bodyMedium, modifier = Modifier.padding(16.dp, 4.dp))
+        Text(text, style = Typography.Body.RegularMl, modifier = Modifier.padding(16.dp, 4.dp))
     }
 
     val context = LocalContext.current
     val antiConfusionText = stringResource(R.string.just_a_demonstration)
     val showAntiConfusionToast = {
-        Toast.makeText(context, antiConfusionText, Toast.LENGTH_SHORT).show()
+        val toast = Toast.makeText(
+            context,
+            antiConfusionText,
+            Toast.LENGTH_SHORT
+        )
+        toast.show()
     }
 
-    ScrollableList {
+    val defaultIME = useDefaultIME(0)
+    val isSet = useIsConfiguredInFUTOKeyboard(defaultIME.value, 0, false)
+
+    SettingsRootList {
         ScreenTitle(title = stringResource(id = R.string.help_title), showBack = true, navController = navController)
+
+
+        if(defaultIME.value.startsWith("org.futo.inputmethod.latin") && isSet.value != KeyboardVoiceInputConfigState.Set) {
+            Tip(stringResource(R.string.help_futo_keyboard_body), TipKind.Warning,
+                actionText = R.string.setup_which_voice_input_to_use_switch_settings,
+                onAction = {
+                    openFUTOKeyboardSettings(context, defaultIME.value)
+                })
+        }
 
         textItem(stringResource(R.string.help_paragraph_1))
         textItem(stringResource(R.string.help_paragraph_2))
 
+        Spacer(Modifier.height(8.dp))
+
         Column(modifier = Modifier.fillMaxWidth()) {
             Box(modifier = Modifier.align(CenterHorizontally)) {
-                // forceNoUnpaidNotice removed — payment infrastructure stripped from this fork
-                RecognizeWindow(onClose = showAntiConfusionToast) {
-                    Text(
-                        stringResource(R.string.voice_input_will_look_like_this),
-                        modifier = Modifier.align(CenterHorizontally),
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        stringResource(R.string.look_for_the_big_off_center_futo_logo_in_the_background),
-                        style = Typography.bodyMedium,
-                        modifier = Modifier.padding(2.dp, 4.dp).align(CenterHorizontally),
-                        textAlign = TextAlign.Center
-                    )
+                RecognizeWindow(onClose = showAntiConfusionToast, useSafeDrawingPadding = false) {
+                    Column {
+                        Text(
+                            stringResource(R.string.voice_input_will_look_like_this),
+                            modifier = Modifier.align(CenterHorizontally),
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            stringResource(R.string.look_for_the_big_off_center_futo_logo_in_the_background),
+                            style = Typography.Body.Regular,
+                            modifier = Modifier
+                                .padding(2.dp, 4.dp)
+                                .align(CenterHorizontally),
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         }
@@ -76,25 +102,29 @@ fun HelpScreen(navController: NavHostController = rememberNavController()) {
 
         Column(modifier = Modifier.fillMaxWidth()) {
             Box(modifier = Modifier.align(CenterHorizontally)) {
-                RecognizeWindow(onClose = showAntiConfusionToast) {
-                    IconButton(
-                        onClick = showAntiConfusionToast,
-                        modifier = Modifier.align(CenterHorizontally)
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.mic_2_),
-                            contentDescription = stringResource(R.string.stop_recording),
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                RecognizeWindow(onClose = showAntiConfusionToast, useSafeDrawingPadding = false) {
+                    Column {
+                        IconButton(
+                            onClick = showAntiConfusionToast,
+                            modifier = Modifier.align(CenterHorizontally)
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.mic_2_),
+                                contentDescription = stringResource(R.string.stop_recording),
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            stringResource(R.string.once_you_re_done_talking_you_can_hit_the_microphone_button_to_stop),
+                            style = Typography.Body.Regular,
+                            modifier = Modifier
+                                .padding(2.dp, 4.dp)
+                                .align(CenterHorizontally),
+                            textAlign = TextAlign.Center
                         )
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        stringResource(R.string.once_you_re_done_talking_you_can_hit_the_microphone_button_to_stop),
-                        style = Typography.bodyMedium,
-                        modifier = Modifier.padding(2.dp, 4.dp).align(CenterHorizontally),
-                        textAlign = TextAlign.Center
-                    )
                 }
             }
         }
@@ -103,31 +133,22 @@ fun HelpScreen(navController: NavHostController = rememberNavController()) {
 
         textItem(stringResource(R.string.help_paragraph_3))
         Column(modifier = Modifier.padding(16.dp, 0.dp)) {
-            textItem(stringResource(R.string.aosp_keyboard_included_in_aosp_based_roms))
+            textItem(stringResource(R.string.futo_keyboard_bullet_point))
             textItem(stringResource(R.string.heliboard_info))
+            textItem(stringResource(R.string.florisboard_info))
             textItem(stringResource(R.string.anysoftkeyboard_available_on_f_droid_and_google_play))
+            textItem(stringResource(R.string.aosp_keyboard_included_in_aosp_based_roms))
             textItem(stringResource(R.string.unexpected_keyboard))
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Tip(stringResource(R.string.help_paragraph_5))
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        textItem(stringResource(R.string.help_paragraph_6))
-        Column(modifier = Modifier.padding(16.dp, 0.dp)) {
-            textItem(stringResource(R.string.grammarly_keyboard))
-            textItem(stringResource(R.string.microsoft_swiftkey))
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Tip(stringResource(R.string.help_paragraph_7))
+        Tip(stringResource(R.string.help_paragraph_5), TipKind.Info)
 
         Spacer(modifier = Modifier.height(4.dp))
         textItem(stringResource(R.string.help_paragraph_8))
         Column(modifier = Modifier.padding(16.dp, 0.dp)) {
+            textItem(stringResource(R.string.microsoft_swiftkey))
             textItem(stringResource(R.string.gboard))
             textItem(stringResource(R.string.samsung_keyboard_one_ui_5))
             textItem(stringResource(R.string.typewise))
@@ -136,7 +157,7 @@ fun HelpScreen(navController: NavHostController = rememberNavController()) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Tip(stringResource(R.string.help_paragraph_9))
+        Tip(stringResource(R.string.help_paragraph_9), TipKind.Info)
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -151,6 +172,7 @@ fun HelpScreen(navController: NavHostController = rememberNavController()) {
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+
 
         textItem(stringResource(R.string.help_with_email))
         ShareFeedbackOption()

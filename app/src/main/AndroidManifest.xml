@@ -2,14 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools" >
 
-    <!-- INTERNET removed: no network access in this fork -->
-    <!-- ACCESS_NETWORK_STATE kept: read-only connectivity check, no data transmitted,
-         removal causes crashes in underlying audio stack on some devices -->
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <queries>
+        <package android:name="org.futo.inputmethod.latin" />
+        <package android:name="org.futo.inputmethod.latin.unstable" />
+    </queries>
+
 
     <application
         android:allowBackup="false"
@@ -23,7 +22,6 @@
         android:name=".LynxVoiceInputApplication"
         android:largeHeap="true"
         tools:targetApi="31" >
-
         <activity
             android:name=".RecognizeActivity"
             android:exported="true"
@@ -33,12 +31,13 @@
             android:visibleToInstantApps="true"
             android:configChanges="orientation|screenLayout|screenSize|keyboardHidden|keyboard|uiMode|density"
             android:theme="@style/Theme.RecognizerInput">
+
             <intent-filter>
                 <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
-
         <activity
             android:name=".settings.SettingsActivity"
             android:exported="true"
@@ -46,47 +45,28 @@
             android:theme="@style/Theme.WhisperVoiceInput" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- ModelPickerActivity: replaces DownloadActivity; uses SAF file picker, no network -->
+        <!-- Replaces the upstream downloader: the user picks model files with the system file picker. -->
         <activity
             android:name=".models.ModelPickerActivity"
             android:exported="false"
-            android:label="@string/model_manager"
-            android:clearTaskOnLaunch="true"
+            android:label="@string/lynx_model_manager"
             android:launchMode="singleTask"
             android:theme="@style/Theme.WhisperVoiceInput" />
-
-        <activity
-            android:name=".migration.MigrationActivity"
-            android:exported="false"
-            android:label="@string/migration_screen"
-            android:clearTaskOnLaunch="true"
-            android:launchMode="singleTask"
-            android:theme="@style/Theme.WhisperVoiceInput" />
-
-        <!-- Removed: DownloadActivity (network download) -->
-        <!-- Removed: PaymentActivity, BillingActivity, PaymentCompleteActivity -->
-        <!-- Removed: UpdateCheckingService -->
 
         <service
             android:name=".VoiceInputMethodService"
             android:exported="true"
-            android:foregroundServiceType="microphone"
             android:label="@string/voice_input_method"
             android:permission="android.permission.BIND_INPUT_METHOD">
             <intent-filter>
                 <action android:name="android.view.InputMethod" />
             </intent-filter>
             <meta-data android:name="android.view.im" android:resource="@xml/input_method" />
-        </service>
-
-        <service
-            android:name=".migration.ModelMigrationJob"
-            android:label="@string/migration_screen"
-            android:permission="android.permission.BIND_JOB_SERVICE" >
         </service>
 
         <!-- Workaround for https://github.com/futo-org/voice-input/issues/17 -->
@@ -104,6 +84,25 @@
             </intent-filter>
         </service>
 
+        <!--
+        <service
+            android:name=".WhisperRecognizerService"
+            android:exported="true"
+            android:foregroundServiceType="microphone"
+            android:icon="@drawable/ic_launcher_foreground"
+            android:label="whisperrecognitionservice"
+            android:permission="android.permission.RECORD_AUDIO" >
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.speech"
+                android:resource="@xml/recognition_service" />
+        </service>
+        -->
     </application>
 
 </manifest>

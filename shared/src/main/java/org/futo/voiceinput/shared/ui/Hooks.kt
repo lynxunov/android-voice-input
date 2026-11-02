@@ -17,19 +17,27 @@ fun animateValueChanges(value: Float, timeMs: Int): Float {
 
     LaunchedEffect(value) {
         val lastValue = previousValue.floatValue
-        if (previousValue.floatValue != value) previousValue.floatValue = value
+        if (previousValue.floatValue != value) {
+            previousValue.floatValue = value
+        }
+
         launch {
             val startTime = withFrameMillis { it }
+
             while (true) {
                 val time = withFrameMillis { frameTime ->
                     val t = (frameTime - startTime).toFloat() / timeMs.toFloat()
+
                     val t1 = MathUtils.clamp(t * t * (3f - 2f * t), 0.0f, 1.0f)
+
                     animatedValue.floatValue = lerp(lastValue, value, t1)
+
                     frameTime
                 }
                 if (time > (startTime + timeMs)) break
             }
         }
     }
+
     return animatedValue.floatValue
 }

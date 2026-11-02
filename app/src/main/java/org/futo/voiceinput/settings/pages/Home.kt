@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -21,39 +22,49 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
-import org.futo.voiceinput.BuildConfig
 import org.futo.voiceinput.R
-import org.futo.voiceinput.migration.ConditionalModelUpdate
 import org.futo.voiceinput.openURI
+import org.futo.voiceinput.theme.Typography
+import org.futo.voiceinput.BuildConfig
+import org.futo.voiceinput.settings.ConditionalModelUpdate
 import org.futo.voiceinput.settings.ENABLE_MULTILINGUAL
+import org.futo.voiceinput.settings.KeyboardVoiceInputConfigState
 import org.futo.voiceinput.settings.NavigationItem
 import org.futo.voiceinput.settings.NavigationItemStyle
 import org.futo.voiceinput.settings.ScreenTitle
-import org.futo.voiceinput.settings.ScrollableList
 import org.futo.voiceinput.settings.SettingItem
+import org.futo.voiceinput.settings.SettingsKey
+import org.futo.voiceinput.settings.SettingsRootList
 import org.futo.voiceinput.settings.SettingsViewModel
+import org.futo.voiceinput.settings.Tip
+import org.futo.voiceinput.settings.TipKind
 import org.futo.voiceinput.settings.useDataStore
-import org.futo.voiceinput.theme.Typography
+import org.futo.voiceinput.settings.useDefaultIME
+import org.futo.voiceinput.settings.useIsConfiguredInFUTOKeyboard
 
-// IS_ALREADY_PAID, ConditionalUnpaidNotice, UnpaidNoticeCondition, ConditionalUpdate removed.
-// Payment navigation items ("pleasePay") removed.
 
 @Composable
 fun ShareFeedbackOption(title: String = stringResource(R.string.send_feedback)) {
     val context = LocalContext.current
     val mailUri = "mailto:${stringResource(R.string.support_email)}"
+
     val color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
     val icon = painterResource(id = R.drawable.mail)
-    SettingItem(title = title, onClick = { context.openURI(mailUri) }, icon = {
+    SettingItem(title = title, onClick = {
+        context.openURI(mailUri)
+    }, icon = {
         Canvas(modifier = Modifier.fillMaxSize()) {
             translate(
                 left = this.size.width / 2.0f - icon.intrinsicSize.width / 2.0f,
-                top  = this.size.height / 2.0f - icon.intrinsicSize.height / 2.0f
+                top = this.size.height / 2.0f - icon.intrinsicSize.height / 2.0f
             ) {
-                with(icon) { draw(icon.intrinsicSize, colorFilter = ColorFilter.tint(color)) }
+                with(icon) {
+                    draw(icon.intrinsicSize, colorFilter = ColorFilter.tint(color))
+                }
             }
         }
     }) {
@@ -64,10 +75,12 @@ fun ShareFeedbackOption(title: String = stringResource(R.string.send_feedback)) 
 @Composable
 fun IssueTrackerOption(title: String = stringResource(R.string.issue_tracker)) {
     val context = LocalContext.current
+    val mailUri = "https://github.com/futo-org/voice-input/issues"
+
     NavigationItem(
         title = title,
         style = NavigationItemStyle.Misc,
-        navigate = { context.openURI("https://github.com/lynxunov/android-voice-input/issues") },
+        navigate = { context.openURI(mailUri) },
         icon = painterResource(R.drawable.alert_circle)
     )
 }
@@ -75,8 +88,9 @@ fun IssueTrackerOption(title: String = stringResource(R.string.issue_tracker)) {
 @Composable
 fun SettingsSeparator(text: String) {
     Spacer(modifier = Modifier.height(16.dp))
-    Text(text, style = Typography.labelMedium, modifier = Modifier.padding(16.dp, 0.dp))
+    Text(text, style = Typography.Small, modifier = Modifier.padding(16.dp, 0.dp))
 }
+
 
 @Composable
 @Preview
@@ -91,17 +105,22 @@ fun HomeScreen(
         null
     }
 
-    ScrollableList {
+    val defaultIME = useDefaultIME(0)
+    val isSet = useIsConfiguredInFUTOKeyboard(defaultIME.value, 0, false)
+
+    SettingsRootList {
         Spacer(modifier = Modifier.height(24.dp))
         ScreenTitle(stringResource(R.string.futo_voice_input_settings))
         Text(
-            "v${BuildConfig.VERSION_NAME}",
-            style = Typography.labelSmall,
-            modifier = Modifier.fillMaxWidth().padding(24.dp, 4.dp),
+            "${BuildConfig.VERSION_NAME}",
+            style = Typography.Small,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp, 4.dp),
             textAlign = TextAlign.End
         )
 
-        // Payment notice and update notice removed
+
         ConditionalModelUpdate()
 
         SettingsSeparator(stringResource(R.string.options))
@@ -112,6 +131,7 @@ fun HomeScreen(
             navigate = { navController.navigate("languages") },
             icon = painterResource(R.drawable.globe)
         )
+
         NavigationItem(
             title = stringResource(R.string.model),
             subtitle = modelsSubtitle(),
@@ -119,6 +139,7 @@ fun HomeScreen(
             navigate = { navController.navigate("models") },
             icon = painterResource(R.drawable.cpu)
         )
+
         NavigationItem(
             title = stringResource(R.string.input_options),
             style = NavigationItemStyle.Misc,
@@ -133,6 +154,7 @@ fun HomeScreen(
             navigate = { navController.navigate("themes") },
             icon = painterResource(R.drawable.eye)
         )
+
         NavigationItem(
             title = stringResource(R.string.testing_menu),
             subtitle = stringResource(R.string.try_out_voice_input),
@@ -140,6 +162,7 @@ fun HomeScreen(
             navigate = { navController.navigate("testing") },
             icon = painterResource(R.drawable.edit)
         )
+
         NavigationItem(
             title = stringResource(R.string.advanced),
             style = NavigationItemStyle.Misc,
@@ -150,10 +173,14 @@ fun HomeScreen(
         SettingsSeparator(stringResource(R.string.about))
         NavigationItem(
             title = stringResource(R.string.help),
+            subtitle = if(defaultIME.value.startsWith("org.futo.inputmethod.latin") && isSet.value != KeyboardVoiceInputConfigState.Set) {
+                stringResource(R.string.help_futo_keyboard_title)
+            } else null,
             style = NavigationItemStyle.Misc,
             navigate = { navController.navigate("help") },
             icon = painterResource(R.drawable.help_circle)
         )
+
         NavigationItem(
             title = stringResource(R.string.credits),
             style = NavigationItemStyle.Misc,
@@ -163,6 +190,7 @@ fun HomeScreen(
         ShareFeedbackOption()
         IssueTrackerOption()
 
-        Spacer(modifier = Modifier.height(64.dp))
+        Spacer(modifier = Modifier.height(32.dp))
+
     }
 }

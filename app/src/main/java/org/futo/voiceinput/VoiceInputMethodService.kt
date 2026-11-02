@@ -1,9 +1,11 @@
+// TODO: Does langauge selector even work here?
 package org.futo.voiceinput
 
 import android.content.Context
 import android.content.res.Configuration
 import android.inputmethodservice.InputMethodService
 import android.os.Build
+import android.text.InputType
 import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
@@ -32,6 +34,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.painterResource
@@ -40,14 +43,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleCoroutineScope
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
-import androidx.lifecycle.coroutineScope
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import androidx.lifecycle.findViewTreeViewModelStoreOwner
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistry
@@ -55,24 +57,25 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.findViewTreeSavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import org.futo.voiceinput.migration.scheduleModelMigrationJob
+import org.futo.voiceinput.shared.ModelDoesNotExistException
+import org.futo.voiceinput.shared.RecognizerView
+import org.futo.voiceinput.shared.RecognizerViewListener
+import org.futo.voiceinput.shared.ui.MicrophoneDeviceState
 import org.futo.voiceinput.theme.UixThemeAuto
 
 val SupportsNavbarExtension = Build.VERSION.SDK_INT >= 28
 
 @Composable
 fun navBarHeight(): Dp = with(LocalDensity.current) {
-    if (SupportsNavbarExtension) WindowInsets.systemBars.getBottom(this).toDp() else 0.dp
+    if(SupportsNavbarExtension) {
+        WindowInsets.systemBars.getBottom(this).toDp()
+    } else {
+        0.dp
+    }
 }
 
 @Composable
-fun RecognizerInputMethodWindow(
-    switchBack: (() -> Unit)? = null,
-    allowClick: Boolean = false,
-    onPauseVAD: (Boolean) -> Unit = { },
-    onFinish: () -> Unit = { },
-    content: @Composable () -> Unit
-) {
+fun RecognizerInputMethodWindow(switchBack: (() -> Unit)? = null, allowClick: Boolean = false, onPauseVAD: (Boolean) -> Unit = { }, onFinish: () -> Unit = { }, content: @Composable () -> Unit) {
     UixThemeAuto(false) {
         Surface(
             modifier = Modifier
@@ -87,180 +90,314 @@ fun RecognizerInputMethodWindow(
             Column(
                 modifier = Modifier.padding(0.dp, 0.dp, 0.dp, 64.dp).drawBehind {
                     with(icon) {
-                        translate(left = -icon.intrinsicSize.width / 2, top = -icon.intrinsicSize.height / 2) {
+                        translate(left = -icon.intrinsicSize.width/2, top = -icon.intrinsicSize.height/2) {
                             translate(left = size.width / 3, top = size.height / 2) {
                                 scale(scaleX = 1.3f, scaleY = 1.3f) {
                                     draw(icon.intrinsicSize, colorFilter = ColorFilter.tint(bgIconTint))
                                 }
+
                             }
                         }
                     }
                 }
             ) {
+
+                val context = LocalContext.current
                 Box(modifier = Modifier.fillMaxWidth()) {
                     Box(modifier = Modifier.align(Alignment.CenterEnd)) {
                         if (switchBack != null) {
-                            IconButton(onClick = switchBack) {
-                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cancel), tint = MaterialTheme.colorScheme.onSurface)
+                            IconButton(
+                                onClick = switchBack
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = stringResource(R.string.cancel),
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
                             }
                         } else {
                             Spacer(modifier = Modifier.height(32.dp))
                         }
                     }
                 }
-                Box(modifier = Modifier.padding(12.dp)) {}
-                content()
+
+                Box(modifier = Modifier.padding(12.dp)) {
+                    
+                }
+
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    content()
+                }
                 Spacer(Modifier.height(navBarHeight()))
             }
         }
     }
 }
 
-val punctuationChars = setOf('!', '?', '.', ',')
 
+val punctuationChars = setOf('!', '?', '.', ',')
 class VoiceInputMethodService : InputMethodService(), LifecycleOwner, ViewModelStoreOwner,
     SavedStateRegistryOwner {
-
     private val mSavedStateRegistryController = SavedStateRegistryController.create(this)
-    override val savedStateRegistry: SavedStateRegistry get() = mSavedStateRegistryController.savedStateRegistry
+
+    override val savedStateRegistry: SavedStateRegistry
+        get() = mSavedStateRegistryController.savedStateRegistry
 
     private val mLifecycleRegistry = LifecycleRegistry(this)
-    override val lifecycle get() = mLifecycleRegistry
+
+    override val lifecycle
+        get() = mLifecycleRegistry
 
     private val store = ViewModelStore()
-    override val viewModelStore get() = store
+    override val viewModelStore
+        get() = store
 
-    private fun handleLifecycleEvent(event: Lifecycle.Event) = mLifecycleRegistry.handleLifecycleEvent(event)
+    private fun handleLifecycleEvent(event: Lifecycle.Event) =
+        mLifecycleRegistry.handleLifecycleEvent(event)
 
     private val inputMethodManager: InputMethodManager
         get() = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
 
     override fun onCreate() {
         super.onCreate()
+
+        if(recognizer == null) initRecognizerView()
+
         mSavedStateRegistryController.performRestore(null)
         handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
-        scheduleModelMigrationJob(applicationContext)
+
     }
 
-    private val recognizer = object : RecognizerView() {
-        override val context: Context get() = this@VoiceInputMethodService
-        override val lifecycleScope: LifecycleCoroutineScope get() = this@VoiceInputMethodService.lifecycle.coroutineScope
 
-        override fun setContent(content: @Composable () -> Unit) {
-            // No-op: rendering is driven by renderWithChrome() in onStartInputView/refreshContent.
-        }
+    private var recognizer: RecognizerView? = null
+    private var onPermissionGranted: () -> Unit = {}
+    private var onPermissionRejected: () -> Unit = {}
 
-        override fun onCancel() {
+    private var textComposed = ""
+    private var pendingPreText = ""
+    private var pendingPostText = ""
+    private var composingStartPos = -100
+
+    fun initRecognizerView() {
+        val cancelSelf = {
             needsInitialization = true
-            reset()
+            recognizer?.reset()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                switchToPreviousInputMethod()
-            } else {
-                @Suppress("DEPRECATION")
-                inputMethodManager.switchToLastInputMethod(window.window!!.attributes.token)
-            }
-        }
-
-        var prevText: CharSequence? = null
-        var nextText: CharSequence? = null
-
-        override fun decodingStarted() {
-            this@VoiceInputMethodService.currentInputConnection?.also {
-                prevText = it.getTextBeforeCursor(1, 0)
-                nextText = it.getTextAfterCursor(1, 0)
-            }
-        }
-
-        override fun sendResult(result: String) {
-            this@VoiceInputMethodService.currentInputConnection?.also {
-                var modifiedResult = result
-                if (!prevText.isNullOrBlank()) {
-                    val lastChar = prevText?.last()
-                    if (punctuationChars.contains(lastChar)) modifiedResult = " $result"
+                if (!switchToPreviousInputMethod()) {
+                    switchToNextInputMethod(false)
                 }
-                it.commitText(modifiedResult, 1)
-            }
-            onCancel()
-        }
-
-        override fun sendPartialResult(result: String): Boolean {
-            return if (this@VoiceInputMethodService.currentInputConnection != null) {
-                this@VoiceInputMethodService.currentInputConnection!!.setComposingText(result, 1)
-                true
-            } else false
-        }
-
-        override fun requestPermission(onGranted: () -> Unit, onRejected: () -> Unit) {
-            // IME cannot show a system permission dialog directly — bail to settings flow.
-            onRejected()
-        }
-
-        override fun modelNotFoundOpenPicker() {
-            val intent = android.content.Intent(this@VoiceInputMethodService, org.futo.voiceinput.models.ModelPickerActivity::class.java)
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            this@VoiceInputMethodService.startActivity(intent)
-            onCancel()
-        }
-    }
-
-    private fun renderWithChrome() {
-        composeView?.setContent {
-            RecognizerInputMethodWindow(
-                switchBack = { recognizer.cancel() },
-                onPauseVAD = { recognizer.inhibitAutoStop(it) },
-                onFinish = { recognizer.finish() }
-            ) {
-                recognizer.Content()
+            } else {
+                if (!inputMethodManager.switchToLastInputMethod(window.window!!.attributes.token)) {
+                    inputMethodManager.switchToNextInputMethod(
+                        window.window!!.attributes.token,
+                        false
+                    )
+                }
             }
         }
+        val settings = loadRecognizerSettings()
+        recognizer = RecognizerView(
+            context = this@VoiceInputMethodService,
+            listener = object : RecognizerViewListener {
+                override fun cancelled() {
+                    cancelSelf()
+                }
+
+                override fun recordingStarted(device: MicrophoneDeviceState) {
+
+                }
+
+                override fun finished(result: String) {
+                    currentInputConnection?.let {
+                        it.commitText(result + pendingPostText, 1)
+                    }
+                    cancelled()
+                }
+
+                override fun partialResult(result: String) {
+                    if(result == textComposed) return
+
+                    currentInputConnection?.let {
+                        if(pendingPreText.isNotEmpty()) {
+                            it.commitText(pendingPreText, 1)
+                            composingStartPos += pendingPreText.length
+                            pendingPreText = ""
+                        }
+                        it.setComposingText(result, 1)
+                        textComposed = result
+                    }
+                }
+
+                override fun requestPermission(
+                    onGranted: () -> Unit,
+                    onRejected: () -> Unit
+                ): Boolean {
+                    // TODO: Launch activity to request permission, steal this code from keyboard
+                    return false
+                }
+
+                override fun openSettings() {
+
+                }
+
+                override fun modelNotFound() {
+                    val models = listOf(
+                        settings.modelRunConfiguration.primaryModel
+                    ) + settings.modelRunConfiguration.languageSpecificModels.values
+
+                    startModelDownloadActivity(models)
+
+                    cancelSelf()
+                }
+            },
+            settings = settings,
+            lifecycleScope = lifecycleScope,
+            modelManager = LynxVoiceInputApplication.getModelManager(this)!!,
+        )
     }
 
     private fun setOwners() {
         val decorView = window.window?.decorView
-        if (decorView?.findViewTreeLifecycleOwner() == null) decorView?.setViewTreeLifecycleOwner(this)
-        if (decorView?.findViewTreeViewModelStoreOwner() == null) decorView?.setViewTreeViewModelStoreOwner(this)
-        if (decorView?.findViewTreeSavedStateRegistryOwner() == null) decorView?.setViewTreeSavedStateRegistryOwner(this)
+        if (decorView?.findViewTreeLifecycleOwner() == null) {
+            decorView?.setViewTreeLifecycleOwner(this)
+        }
+        if (decorView?.findViewTreeViewModelStoreOwner() == null) {
+            decorView?.setViewTreeViewModelStoreOwner(this)
+        }
+        if (decorView?.findViewTreeSavedStateRegistryOwner() == null) {
+            decorView?.setViewTreeSavedStateRegistryOwner(this)
+        }
+
         window.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     private var composeView: ComposeView? = null
 
     override fun onCreateInputView(): View {
+        // The input view is the main view where the user inputs text via keyclicks, handwriting,
+        // gestures, or in this case there is a voice input menu.
         composeView = ComposeView(this).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setParentCompositionContext(null)
+
             this@VoiceInputMethodService.setOwners()
         }
+
         updateNavigationBarVisibility()
         return composeView!!
     }
 
-    override fun onCreateCandidatesView(): View? = null
+    override fun onCreateCandidatesView(): View? {
+        // The candidates view shows potential word corrections or suggestions for the user to select.
+        // Return null, as the voice input does not need this.
+        return null
+    }
 
     private fun updateNavigationBarVisibility() {
-        if (SupportsNavbarExtension) {
-            window.window?.let { WindowCompat.setDecorFitsSystemWindows(it, false) }
+        if(SupportsNavbarExtension) {
+            window.window?.let { window ->
+                WindowCompat.setDecorFitsSystemWindows(window, false)
+            }
         }
     }
 
     private var needsInitialization = true
-
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
-        if (needsInitialization) {
+
+        when (info.inputType and InputType.TYPE_MASK_CLASS) {
+            InputType.TYPE_CLASS_NUMBER -> {
+                // number
+            }
+            InputType.TYPE_CLASS_DATETIME -> {
+                // date time ??
+            }
+            InputType.TYPE_CLASS_PHONE -> {
+                // phone number
+                // could add whisper prompt like "My phone number is "
+            }
+            InputType.TYPE_CLASS_TEXT -> {
+                // text :)
+                if(info.inputType == InputType.TYPE_TEXT_VARIATION_PASSWORD) {
+                    // ...
+                }
+            }
+        }
+
+        // Move cursor to end of selection if one is active
+        currentInputConnection?.let { ic ->
+            var txtBefore: String? = null
+            var txtAfter: String? = null
+
+            if(info.initialSelStart != info.initialSelEnd && (info.initialSelStart != -1) && (info.initialSelEnd > 0)) {
+                ic.setSelection(info.initialSelEnd, info.initialSelEnd)
+            }
+            if(info.initialSelStart != -1) composingStartPos = info.initialSelStart
+
+            txtBefore = ic.getTextBeforeCursor(1, 0)?.toString()
+            txtAfter = ic.getTextAfterCursor(1, 0)?.toString()
+
+            if(txtBefore?.lastOrNull()?.isWhitespace() == false) pendingPreText = " "
+            if(txtAfter?.getOrNull(0)?.isLetter() == true) pendingPostText = " "
+        }
+
+        if(needsInitialization) {
             needsInitialization = false
-            recognizer.reset()
-            recognizer.init()
-            renderWithChrome()
+
+            if(recognizer == null) initRecognizerView()
+            recognizer?.reset()
+            recognizer?.start()
         } else {
-            println("Continuing recording, likely due to landscape/portrait switch")
-            renderWithChrome()
+            println("Continue due to config change / screen rotation")
+            // TODO: Screen rotation
+        }
+        // TODO: Idle state
+
+        composeView!!.setContent {
+            RecognizerInputMethodWindow(
+                switchBack = { recognizer?.cancel() },
+                onPauseVAD = { recognizer?.inhibitAutoStop(it) },
+                onFinish = { recognizer?.finish() },
+                allowClick = recognizer?.isFinishable?.value ?: false
+            ) {
+                recognizer?.Content()
+            }
+        }
+    }
+
+    override fun onUpdateSelection(
+        oldSelStart: Int,
+        oldSelEnd: Int,
+        newSelStart: Int,
+        newSelEnd: Int,
+        candidatesStart: Int,
+        candidatesEnd: Int
+    ) {
+        super.onUpdateSelection(
+            oldSelStart,
+            oldSelEnd,
+            newSelStart,
+            newSelEnd,
+            candidatesStart,
+            candidatesEnd
+        )
+
+        // User selected a word. Try to recover by some chance
+        if(newSelStart != newSelEnd && composingStartPos > 0) {
+            currentInputConnection?.let {
+                it.setSelection(composingStartPos + textComposed.length, composingStartPos + textComposed.length)
+                if(it.getTextBeforeCursor(textComposed.length, 0) == textComposed) {
+                    it.setComposingRegion(composingStartPos, composingStartPos + textComposed.length)
+                    // recovered
+                }
+            }
         }
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
         println("Finish input view")
-        recognizer.reset()
+        recognizer?.reset()
+
         needsInitialization = true
     }
 
@@ -273,8 +410,11 @@ class VoiceInputMethodService : InputMethodService(), LifecycleOwner, ViewModelS
         updateNavigationBarVisibility()
     }
 
+    override fun onEvaluateFullscreenMode(): Boolean = false
+
     override fun onDestroy() {
         super.onDestroy()
+
         println("Destroy")
         handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
     }

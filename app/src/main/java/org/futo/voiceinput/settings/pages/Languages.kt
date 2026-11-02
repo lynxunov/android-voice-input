@@ -14,19 +14,21 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.Job
 import org.futo.voiceinput.LANGUAGE_LIST
-import org.futo.voiceinput.MULTILINGUAL_MODELS
 import org.futo.voiceinput.R
 import org.futo.voiceinput.settings.ALLOW_UNDERTRAINED_LANGUAGES
 import org.futo.voiceinput.settings.ENABLE_MULTILINGUAL
 import org.futo.voiceinput.settings.LANGUAGE_TOGGLES
 import org.futo.voiceinput.settings.MULTILINGUAL_MODEL_INDEX
 import org.futo.voiceinput.settings.ScreenTitle
-import org.futo.voiceinput.settings.SettingListLazy
 import org.futo.voiceinput.settings.SettingToggleRaw
+import org.futo.voiceinput.settings.SettingsRootListLazy
 import org.futo.voiceinput.settings.SettingsViewModel
 import org.futo.voiceinput.settings.Tip
+import org.futo.voiceinput.settings.TipKind
 import org.futo.voiceinput.settings.useDataStore
-import org.futo.voiceinput.startModelPickerActivity
+import org.futo.voiceinput.shared.MULTILINGUAL_MODELS
+import org.futo.voiceinput.shared.types.getLanguageFromWhisperString
+
 
 @Composable
 fun LanguageToggle(
@@ -34,16 +36,22 @@ fun LanguageToggle(
     name: String,
     languages: Set<String>,
     setLanguages: (Set<String>) -> Job,
-    subtitle: String?
+    subtitle: String?,
+    disabled: Boolean
 ) {
-    val disabled = languages.contains(id) && languages.size == 1
+    val disabled = disabled || (languages.contains(id) && languages.size == 1)
+
     SettingToggleRaw(
         name,
         languages.contains(id),
         {
-            setLanguages((languages.filter { it != id } + if (it) listOf(id) else listOf()).toSet())
+            setLanguages((languages.filter { it != id } + if (it) {
+                listOf(id)
+            } else {
+                listOf()
+            }).toSet())
         },
-        subtitle = if (disabled) stringResource(R.string.only_language_enabled) else subtitle,
+        subtitle = if(disabled) { stringResource(R.string.only_language_enabled) } else { subtitle },
         disabled = disabled
     )
 }
@@ -58,51 +66,74 @@ fun LanguagesScreen(
     val (multilingualModelIndex, _) = useDataStore(MULTILINGUAL_MODEL_INDEX)
     val (languages, setLanguages) = useDataStore(LANGUAGE_TOGGLES)
     val context = LocalContext.current
+
     val (allowUndertrainedLanguages, _) = useDataStore(ALLOW_UNDERTRAINED_LANGUAGES)
 
-    LaunchedEffect(listOf(multilingualModelIndex, multilingual)) {
-        if (multilingual) {
-            // No auto-download in this fork: open Model Manager so user can pick the file.
-            context.startModelPickerActivity()
-        }
-    }
+    val model = MULTILINGUAL_MODELS[multilingualModelIndex]
 
     LaunchedEffect(languages) {
         val newMultilingual = languages.count { it != "en" } > 0
         if (multilingual != newMultilingual) setMultilingual(newMultilingual)
     }
 
-    SettingListLazy {
+    SettingsRootListLazy {
         item {
             ScreenTitle(stringResource(R.string.languages_title), showBack = true, navController = navController)
         }
+
         item {
-            Tip(stringResource(R.string.language_tip_1))
-            Tip(stringResource(R.string.language_tip_2))
-            Tip(stringResource(R.string.language_tip_3))
+            Tip(stringResource(R.string.language_tip_1), TipKind.Info)
+
+            val unsupportedLanguages = languages.map { getLanguageFromWhisperString(it) }.filter { it !in model.caps.supportedLanguages }
+
+            if(unsupportedLanguages.isNotEmpty()) {
+                Tip(
+                    stringResource(
+                        R.string.language_settings_model_doesnt_support_languages,
+                        stringResource(model.name),
+                        unsupportedLanguages.joinToString(", ")
+                    ),
+                    TipKind.Error
+                )
+            }
         }
+
         items(LANGUAGE_LIST.size) {
             val language = LANGUAGE_LIST[it]
 
-            if (allowUndertrainedLanguages && it > 0) {
+            if(allowUndertrainedLanguages && it > 0 && model.caps.isWhisper) {
                 if (language.trainedHourCount < 1000 && LANGUAGE_LIST[it - 1].trainedHourCount >= 1000) {
                     Spacer(modifier = Modifier.height(48.dp))
-                    Tip(stringResource(R.string.language_unsupported_warning_1000))
+                    Tip(stringResource(R.string.language_unsupported_warning_1000), TipKind.Info)
                 } else if (language.trainedHourCount < 100 && LANGUAGE_LIST[it - 1].trainedHourCount >= 100) {
                     Spacer(modifier = Modifier.height(48.dp))
-                    Tip(stringResource(R.string.language_unsupported_warning_100))
+                    Tip(stringResource(R.string.language_unsupported_warning_100), TipKind.Info)
                 }
             }
 
-            val subtitle = if (language.trainedHourCount < 1000) {
-                stringResource(R.string.may_be_low_accuracy_x_hours, language.trainedHourCount)
-            } else {
-                stringResource(R.string.trained_on_x_hours, language.trainedHourCount)
+            val modelSupportsLanguage = getLanguageFromWhisperString(language.id) in model.caps.supportedLanguages
+            val subtitle = when {
+                 !modelSupportsLanguage ->
+                     stringResource(R.string.language_settings_language_unsupported_by_model, stringResource(model.name))
+
+                !model.caps.isWhisper && model.caps.unrecommendedLanguages.contains(getLanguageFromWhisperString(language.id))
+                        && languages.contains(language.id) ->
+                    stringResource(R.string.whisper_recommended_subtitle)
+
+                !model.caps.isWhisper ->
+                    ""
+
+                language.trainedHourCount < 1000 ->
+                    stringResource(R.string.may_be_low_accuracy_x_hours, language.trainedHourCount)
+
+                else ->
+                    stringResource(R.string.trained_on_x_hours, language.trainedHourCount)
             }
 
-            if (allowUndertrainedLanguages || language.trainedHourCount > 1000) {
-                LanguageToggle(language.id, language.name, languages, setLanguages, subtitle)
-            }
+            if(!modelSupportsLanguage && !languages.contains(language.id)) return@items
+            if(model.caps.isWhisper && !allowUndertrainedLanguages && language.trainedHourCount <= 1000) return@items
+
+            LanguageToggle(language.id, language.name, languages, setLanguages, subtitle, false)
         }
     }
 }

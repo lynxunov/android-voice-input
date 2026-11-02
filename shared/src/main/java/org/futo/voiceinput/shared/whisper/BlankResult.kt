@@ -1,15 +1,27 @@
 package org.futo.voiceinput.shared.whisper
 
 private fun createBlankResultPermutations(blankResults: List<String>): HashSet<String> {
-    val r = blankResults.map { it.lowercase() }.toMutableList()
-    r += r.map { it.replace("(", "[").replace(")", "]") }
-    r += r.map { it.replace(" ", "_") }
-    return r.map { it.lowercase() }.toHashSet()
+    val blankResultsResult = blankResults.map { it.lowercase() }.toMutableList()
+
+    blankResultsResult += blankResultsResult.map {
+        it.replace("(", "[").replace(")", "]")
+    }
+    blankResultsResult += blankResultsResult.map {
+        it.replace(" ", "_")
+    }
+
+    return blankResultsResult.map { it.lowercase() }.toHashSet()
 }
 
 private val EMPTY_RESULTS = createBlankResultPermutations(
-    listOf("you", "(bell dings)", "(blank audio)", "(beep)", "(bell)", "(music)",
-           "(music playing)", "♪", "♪♪")
+    listOf(
+        "you", "(bell dings)", "(blank audio)", "(beep)", "(bell)", "(music)", "(music playing)",
+
+        // TODO: These should be filtered out by suppressNonSpeechTokens but aren't
+        "♪", "♪♪"
+    )
 )
 
-fun isBlankResult(result: String): Boolean = EMPTY_RESULTS.contains(result)
+fun isBlankResult(result: String): Boolean {
+    return EMPTY_RESULTS.contains(result)
+}

@@ -3,12 +3,7 @@ package org.futo.voiceinput.shared
 import org.futo.voiceinput.shared.types.Language
 import org.futo.voiceinput.shared.types.ModelCapabilities
 import org.futo.voiceinput.shared.types.ModelDownloadable
-
-// ModelBuiltInAsset removed: no built-in model in this fork.
-// Users pick model files via ModelPickerActivity (SAF).
-// Model download info page: https://github.com/futo-org/whisper-acft
-
-val MODEL_DOWNLOAD_INFO_URL = "https://github.com/futo-org/whisper-acft"
+import org.futo.voiceinput.shared.types.ModelLoader
 
 val WhisperEnCapabilities = ModelCapabilities(
     supportedLanguages = setOf(Language.English),
@@ -39,24 +34,36 @@ private val Nemotron600M = ModelDownloadable(
     ggmlFile = "nemotron-3.5-asr-streaming-0.6b-Q4_K_M.gguf",
     checksum = "41c99fa5fb6f3d35f68e79adc3e755eca2232a8d921178bd647b71194792b8fd",
     caps = ModelCapabilities(
+        // from https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b#supported-languages
         supportedLanguages = setOf(
-            Language.English, Language.Spanish, Language.French, Language.Italian,
-            Language.Portuguese, Language.Dutch, Language.German, Language.Turkish,
-            Language.Russian, Language.Arabic, Language.Hindi, Language.Japanese,
-            Language.Korean, Language.Vietnamese, Language.Ukrainian, Language.Polish,
-            Language.Swedish, Language.Czech, Language.Norwegian, Language.Danish,
-            Language.Bulgarian, Language.Finnish, Language.Croatian, Language.Slovak,
-            Language.Chinese, Language.Hungarian, Language.Romanian, Language.Estonian,
+            // transcription ready
+            Language.English, Language.Spanish, Language.French,
+            Language.Italian, Language.Portuguese, Language.Dutch,
+            Language.German, Language.Turkish, Language.Russian,
+            Language.Arabic, Language.Hindi, Language.Japanese,
+            Language.Korean, Language.Vietnamese, Language.Ukrainian,
+
+            // broad coverage
+            Language.Polish, Language.Swedish, Language.Czech,
+            Language.Norwegian, Language.Danish, Language.Bulgarian,
+            Language.Finnish, Language.Croatian, Language.Slovak,
+            Language.Chinese, Language.Hungarian, Language.Romanian,
+            Language.Estonian,
+
+            // adaptation ready excluded
         ),
         supportsLanguageDetection = false,
         supportsPersonalDict = false,
         supportsStreaming = true,
         paramCount = 600,
-        unrecommendedLanguages = setOf(Language.Japanese, Language.Korean),
+        unrecommendedLanguages = setOf(
+            Language.Japanese, // Outputs nothing a lot of the time!
+            Language.Korean,
+        )
     )
 )
 
-val ENGLISH_MODELS = listOf(
+val ENGLISH_MODELS: List<ModelLoader> = listOf(
     ModelDownloadable(
         name = R.string.tiny_en_name,
         ggmlFile = "tiny_en_acft_q8_0.bin",
@@ -82,7 +89,8 @@ val ENGLISH_MODELS = listOf(
         caps = Asr4AllCapabilities.copy(paramCount = 28),
         backwardsCompatFiles = listOf("asr4all-s-Q8_0.gguf", "asr4all-s-Q8_0-v2.gguf"),
     ),
-    // asr4all-m: was built-in asset in upstream; in this fork it is user-selected like all others
+    // Fork change: upstream bundles this model in the APK (ModelBuiltInAsset). Here it is a normal
+    // user-selected file like every other model. Checksum = the one upstream's build script verified.
     ModelDownloadable(
         name = R.string.asr4all_m_name,
         ggmlFile = "asr4all-m-gptq-Q8_0.gguf",
@@ -102,8 +110,10 @@ val ENGLISH_MODELS = listOf(
         checksum = "7dd44c74a331d788a4e5f8b16913b3feb29ced22cf5613aad0e0f6cd30516296",
         caps = ModelCapabilities(
             supportedLanguages = setOf(Language.English),
-            supportsLanguageDetection = false, supportsPersonalDict = false,
-            supportsStreaming = false, paramCount = 110,
+            supportsLanguageDetection = false,
+            supportsPersonalDict = false,
+            supportsStreaming = false,
+            paramCount = 110,
         )
     ),
     ModelDownloadable(
@@ -112,8 +122,11 @@ val ENGLISH_MODELS = listOf(
         checksum = "a8bf3de2b393bd14ead5a858c3748d5e3b07a20fdeabdd3b498fba4f463fa929",
         caps = ModelCapabilities(
             supportedLanguages = setOf(Language.English),
-            supportsLanguageDetection = false, supportsPersonalDict = false,
-            supportsStreaming = false, paramCount = 600, banishedToOther = true,
+            supportsLanguageDetection = false,
+            supportsPersonalDict = false,
+            supportsStreaming = false, // technically true but no chance it runs fast enough
+            paramCount = 600,
+            banishedToOther = true // should use nemotron instead
         )
     ),
     Nemotron600M,
@@ -123,8 +136,10 @@ val ENGLISH_MODELS = listOf(
         checksum = "dc959ca31499b114e395c44eb4f0778968f20e5cfb03305a08a39925b2da8e1e",
         caps = ModelCapabilities(
             supportedLanguages = setOf(Language.English),
-            supportsLanguageDetection = false, supportsPersonalDict = false,
-            supportsStreaming = true, paramCount = 600,
+            supportsLanguageDetection = false,
+            supportsPersonalDict = false,
+            supportsStreaming = true,
+            paramCount = 600,
         )
     ),
     ModelDownloadable(
@@ -133,13 +148,18 @@ val ENGLISH_MODELS = listOf(
         checksum = "d03670f69629b649085d0f44a63d97668b4119117cc9611a4e4ad94341713dfc",
         caps = ModelCapabilities(
             supportedLanguages = setOf(Language.English),
-            supportsLanguageDetection = false, supportsPersonalDict = false,
-            supportsStreaming = true, paramCount = 100, banishedToOther = true,
+            supportsLanguageDetection = false,
+            supportsPersonalDict = false, // TODO: double check
+            supportsStreaming = true,
+            paramCount = 100,
+            banishedToOther = true // seems to struggle streaming
         )
     ),
 )
 
-val MULTILINGUAL_MODELS = listOf(
+val DEFAULT_ENGLISH_MODEL_IDX = ENGLISH_MODELS.indexOfFirst { it is ModelDownloadable && it.ggmlFile == "asr4all-m-gptq-Q8_0.gguf" }
+
+val MULTILINGUAL_MODELS: List<ModelLoader> = listOf(
     ModelDownloadable(
         name = R.string.tiny_name,
         ggmlFile = "tiny_acft_q8_0.bin",
@@ -160,7 +180,3 @@ val MULTILINGUAL_MODELS = listOf(
     ),
     Nemotron600M,
 )
-
-// Default indices (no built-in; user must configure at least one)
-val DEFAULT_ENGLISH_MODEL_IDX = 4  // asr4all-m (was built-in; now user-selected)
-val DEFAULT_MULTILINGUAL_MODEL_IDX = 1  // base whisper multilingual

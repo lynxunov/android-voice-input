@@ -2,77 +2,32 @@ package org.futo.voiceinput.models
 
 import android.content.Context
 import android.net.Uri
-import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_0
-import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_1
-import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_2
-import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_3
-import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_4
-import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_5
-import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_6
-import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_7
-import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_8
-import org.futo.voiceinput.settings.MODEL_URI_ENGLISH_9
-import org.futo.voiceinput.settings.MODEL_URI_MULTILINGUAL_0
-import org.futo.voiceinput.settings.MODEL_URI_MULTILINGUAL_1
-import org.futo.voiceinput.settings.MODEL_URI_MULTILINGUAL_2
-import org.futo.voiceinput.settings.MODEL_URI_MULTILINGUAL_3
-import org.futo.voiceinput.settings.SettingsKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import org.futo.voiceinput.settings.getSetting
 import org.futo.voiceinput.settings.setSetting
-import org.futo.voiceinput.shared.ENGLISH_MODELS
-import org.futo.voiceinput.shared.MULTILINGUAL_MODELS
-import org.futo.voiceinput.shared.WhisperEnCapabilities
-import org.futo.voiceinput.shared.types.ModelSafUri
+import org.futo.voiceinput.shared.types.ModelLoader
 
 /**
- * One slot per model in ENGLISH_MODELS and MULTILINGUAL_MODELS.
- * Index matches the list position exactly.
+ * Remembers which file the user picked for which model.
+ *
+ * Models are identified by [ModelLoader.key] (stable across upstream list reordering, and shared when
+ * the same model appears in both the English and multilingual lists). Only the URI string is stored;
+ * the file itself stays wherever the user keeps it and is never copied.
  */
-enum class ModelSlot(val key: SettingsKey<String>, val isEnglish: Boolean) {
-    ENGLISH_0(MODEL_URI_ENGLISH_0, true),
-    ENGLISH_1(MODEL_URI_ENGLISH_1, true),
-    ENGLISH_2(MODEL_URI_ENGLISH_2, true),
-    ENGLISH_3(MODEL_URI_ENGLISH_3, true),
-    ENGLISH_4(MODEL_URI_ENGLISH_4, true),
-    ENGLISH_5(MODEL_URI_ENGLISH_5, true),
-    ENGLISH_6(MODEL_URI_ENGLISH_6, true),
-    ENGLISH_7(MODEL_URI_ENGLISH_7, true),
-    ENGLISH_8(MODEL_URI_ENGLISH_8, true),
-    ENGLISH_9(MODEL_URI_ENGLISH_9, true),
-    MULTILINGUAL_0(MODEL_URI_MULTILINGUAL_0, false),
-    MULTILINGUAL_1(MODEL_URI_MULTILINGUAL_1, false),
-    MULTILINGUAL_2(MODEL_URI_MULTILINGUAL_2, false),
-    MULTILINGUAL_3(MODEL_URI_MULTILINGUAL_3, false);
+internal fun ModelLoader.storageId(context: Context): String =
+    key(context).toString().replace(Regex("[^A-Za-z0-9_.-]"), "_")
 
-    val modelIndex: Int get() = if (isEnglish) ordinal else ordinal - 10
-}
+private fun uriKey(id: String) = stringPreferencesKey("model_uri_$id")
 
-suspend fun Context.setModelUri(slot: ModelSlot, uri: Uri) = setSetting(slot.key, uri.toString())
-suspend fun Context.clearModelUri(slot: ModelSlot) = setSetting(slot.key, "")
+fun Context.getModelUri(model: ModelLoader): Uri? =
+    getSetting(uriKey(model.storageId(this)), "").takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
 
-suspend fun Context.getModelUri(slot: ModelSlot): Uri? {
-    val raw = getSetting(slot.key)
-    return if (raw.isBlank()) null else Uri.parse(raw)
-}
+suspend fun Context.setModelUri(model: ModelLoader, uri: Uri) =
+    setSetting(uriKey(model.storageId(this)), uri.toString())
 
-suspend fun Context.isModelAvailable(slot: ModelSlot): Boolean {
-    val uri = getModelUri(slot) ?: return false
-    return contentResolver.persistedUriPermissions.any { it.uri == uri && it.isReadPermission }
-}
+suspend fun Context.clearModelUri(model: ModelLoader) =
+    setSetting(uriKey(model.storageId(this)), "")
 
-suspend fun Context.allModelSlotStatus(): Map<ModelSlot, Boolean> =
-    ModelSlot.values().associateWith { isModelAvailable(it) }
-
-/** Returns a ModelSafUri for the given slot, or null if not configured. */
-suspend fun Context.toModelSafUri(slot: ModelSlot): ModelSafUri? {
-    val uri = getModelUri(slot) ?: return null
-    if (!contentResolver.persistedUriPermissions.any { it.uri == uri && it.isReadPermission }) return null
-
-    val model = if (slot.isEnglish) ENGLISH_MODELS.getOrNull(slot.modelIndex)
-                else MULTILINGUAL_MODELS.getOrNull(slot.modelIndex)
-
-    val nameRes = model?.name ?: org.futo.voiceinput.R.string.model_manager
-    val caps = model?.caps ?: WhisperEnCapabilities
-
-    return ModelSafUri(name = nameRes, uri = uri, caps = caps)
-}
+/** True if the system still lets this app read [uri] (permission was persisted and not revoked). */
+fun Context.hasPersistedReadAccess(uri: Uri): Boolean =
+    contentResolver.persistedUriPermissions.any { it.uri == uri && it.isReadPermission }

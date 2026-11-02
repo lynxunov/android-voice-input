@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings added by this fork. Kept in their own file so upstream's strings.xml merges cleanly. -->
+<resources>
+    <string name="lynx_model_manager">Model Manager</string>
+    <string name="lynx_model_manager_subtitle">Choose the model files to use</string>
+    <string name="lynx_models_intro">This app has no internet access. Download the model files you want with your browser, then choose each file here. Files are used where they are stored – nothing is copied.</string>
+    <string name="lynx_open_model_info">Open model information page</string>
+    <string name="lynx_models_english">English models</string>
+    <string name="lynx_models_multilingual">Multilingual models</string>
+    <string name="lynx_status_ready">Ready</string>
+    <string name="lynx_status_missing">No file selected</string>
+    <string name="lynx_expected_file">Expected file: %1$s</string>
+    <string name="lynx_choose_file">Choose file</string>
+    <string name="lynx_replace_file">Change file</string>
+    <string name="lynx_remove">Remove</string>
+    <string name="lynx_verify">Verify</string>
+    <string name="lynx_download_link">Download link</string>
+    <string name="lynx_verify_running">Verifying…</string>
+    <string name="lynx_verify_ok">Checksum matches the official file</string>
+    <string name="lynx_verify_bad">Checksum does not match the official file – it may be corrupt or a different version</string>
+    <string name="lynx_verify_failed">Could not read the file</string>
+    <string name="lynx_name_mismatch">The selected file is named %1$s but %2$s was expected. Make sure it is the right model.</string>
+</resources>

@@ -1,11 +1,76 @@
 plugins {
-    id 'com.android.library'
-    id 'org.jetbrains.kotlin.android'
-    id 'org.jetbrains.kotlin.plugin.compose'
+    id 'com.android.library' version '9.2.1'
+    id 'org.jetbrains.kotlin.android' version '2.2.10'
+    id 'org.jetbrains.kotlin.plugin.compose' version '2.2.10'
 }
 
-// downloadModel task removed: no built-in asset in this fork. All models are
-// user-selected via SAF (ModelPickerActivity) and loaded from their original location.
+final def translationsWithoutEngValues = { final String path ->
+    final def sourceDir = file(path)
+    final def taskNameSuffix = sourceDir.name.capitalize()
+
+    final def destDir = file("$buildDir/generated/res-translations-filtered/${taskNameSuffix}")
+
+    tasks.register("prepareResFilter${taskNameSuffix}", Copy) {
+        from(sourceDir) {
+            include 'values-*/**'
+
+            filter { String line ->
+                def matcher = line =~ /<string name="([^"]+)"[^>]*>(.+)<\/string>/
+
+                if (matcher.find()) {
+                    var stringName = matcher.group(1)
+                    var content = matcher.group(2)
+
+                    content = content
+                    // Fix duplicate string tags
+                            .replaceAll(/<!\[CDATA\[<string [^>]+>(.+)<\\/string>\]\]>/, '$1')
+                            .replaceAll(/<string [^>]+>(.+)<\\/string>/, '$1')
+                            .replaceAll(/&lt;string [^&]+&gt;(.+)&lt;\\/string&gt;/, '$1')
+                    // Remove xliff:g tags entirely, keep only the content
+                            .replaceAll(/<xliff:g [^>]+>(.+?)<\/xliff:g>/, '$1')
+                            .replaceAll(/&lt;xliff:g [^&]+&gt;(.+?)&lt;\/xliff:g&gt;/, '$1')
+                    // Fix escaped quotes
+                            .replaceAll(/&amp;quot;/, '"')
+                            .replaceAll(/&quot;/, '"')
+                            .replaceAll(/\\+/, "\\\\")
+                            .replaceAll(/\\"/, '"')
+                            .replaceAll(/\\'/, "'")
+
+                    if (content.startsWith("&quot;")) {
+                        content = content.substring(6)
+                    } else if (content.startsWith('\\"')) {
+                        content = content.substring(2)
+                    } else if (content.startsWith('"')) {
+                        content = content.substring(1)
+                    }
+                    if (content.endsWith("&quot;")) {
+                        content = content.substring(0, content.length() - 6)
+                    } else if (content.endsWith('\\"')) {
+                        content = content.substring(0, content.length() - 2)
+                    } else if (content.endsWith('"')) {
+                        content = content.substring(0, content.length() - 1)
+                    }
+
+                    content = content.replaceAll('"', '\\\\"')
+
+                    "    <string name=\"" + stringName + "\">\"" + content + "\"</string>\n"
+                } else {
+                    line
+                }
+            }
+        }
+        into(destDir)
+        includeEmptyDirs = false
+    }
+
+    // Ensure it runs before build
+    preBuild.dependsOn("prepareResFilter${taskNameSuffix}")
+
+    destDir
+}
+
+// Removed in this fork: the upstream `downloadModel` task (fetched a built-in model from the network at
+// build time and bundled it into the APK). Models are user-selected at runtime via the Model Manager.
 
 android {
     namespace 'org.futo.voiceinput.shared'
@@ -13,6 +78,7 @@ android {
 
     defaultConfig {
         minSdk 24
+
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
     }
@@ -38,13 +104,11 @@ android {
     kotlinOptions {
         jvmTarget = '1.8'
     }
-
     buildFeatures {
         compose true
         viewBinding true
         mlModelBinding true
     }
-
     lint {
         targetSdk 36
     }
@@ -60,10 +124,6 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.4'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4'
     implementation 'androidx.activity:activity-compose:1.9.1'
-
-    // Bumped from 2022.10.00: mutableFloatStateOf/MutableFloatState (Compose 1.6+)
-    // and surfaceDim/surfaceContainerLow Material3 color roles (Material3 1.2+)
-    // both require a newer BOM than the original app/build.gradle used.
     implementation platform('androidx.compose:compose-bom:2024.06.00')
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-graphics'
@@ -74,9 +134,8 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.navigation:navigation-compose:2.7.7'
     implementation 'androidx.datastore:datastore-preferences:1.1.1'
-    implementation 'androidx.collection:collection:1.4.0'
 
-    implementation(name: 'vad-release', ext: 'aar')
+    implementation(name:'vad-release', ext:'aar')
 
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1'
 }
