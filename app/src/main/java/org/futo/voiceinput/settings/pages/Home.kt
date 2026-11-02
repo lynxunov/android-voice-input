@@ -75,7 +75,7 @@ fun ShareFeedbackOption(title: String = stringResource(R.string.send_feedback)) 
 @Composable
 fun IssueTrackerOption(title: String = stringResource(R.string.issue_tracker)) {
     val context = LocalContext.current
-    val mailUri = "https://github.com/futo-org/voice-input/issues"
+    val mailUri = "https://github.com/lynxunov/android-voice-input/issues"
 
     NavigationItem(
         title = title,
@@ -187,7 +187,6 @@ fun HomeScreen(
             navigate = { navController.navigate("credits") },
             icon = painterResource(R.drawable.users)
         )
-        ShareFeedbackOption()
         IssueTrackerOption()
 
         Spacer(modifier = Modifier.height(32.dp))

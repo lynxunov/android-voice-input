@@ -1,6 +1,6 @@
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-    <string name="app_name">FUTO Voice Input</string>
-    <string name="voice_input_method">FUTO Voice Input Method</string>
+    <string name="app_name">Lynx Voice Input</string>
+    <string name="voice_input_method">Lynx Voice Input Method</string>
     <string name="support_email" translatable="false">voiceinput@futo.org</string>
     <string name="suppress_non_speech_annotations">Suppress non-speech annotations</string>
     <string name="suppress_non_speech_annotations_subtitle">[cough], [music], etc</string>
@@ -18,7 +18,7 @@
     <string name="view_other_dependencies">View Other Dependencies</string>
     <string name="name_legal">The authors, contributors or copyright holders listed above are not affiliated with this product and do not endorse or promote this product. Reference to the authors, contributors or copyright holders is solely for attribution purposes. Mention of their names does not imply approval or endorsement.</string>
     <string name="just_a_demonstration">This is just a demonstration of how Voice Input looks</string>
-    <string name="help_paragraph_1">You\'ve installed and enabled FUTO Voice Input. You should now be able to use it in supported apps and keyboards.</string>
+    <string name="help_paragraph_1">You\'ve installed and enabled Lynx Voice Input. You should now be able to use it in supported apps and keyboards.</string>
     <string name="help_paragraph_2">When you open voice input, it should look something like this:</string>
     <string name="voice_input_will_look_like_this">Voice Input will look like this</string>
     <string name="look_for_the_big_off_center_futo_logo_in_the_background">Look for the big off-center FUTO logo in the background!</string>
@@ -32,7 +32,7 @@
     <string name="aosp_keyboard_included_in_aosp_based_roms">• AOSP Keyboard, if it\'s included in your OS</string>
     <string name="help_paragraph_5">Everything you type is seen by your keyboard app, and proprietary commercial keyboards often have lengthy and complicated privacy policies. Choose carefully!</string>
     <string name="help_paragraph_7">Note: Not all keyboards are compatible with Voice Input. You need to make sure you\'re using a compatible keyboard.</string>
-    <string name="help_paragraph_8">Not all keyboards are compatible with FUTO Voice Input. You should avoid using:</string>
+    <string name="help_paragraph_8">Not all keyboards are compatible with Lynx Voice Input. You should avoid using:</string>
     <string name="microsoft_swiftkey" translatable="false">• Microsoft SwiftKey - not recommended due to bugs that sometimes lead to disappearance of text</string>
     <string name="gboard" translatable="false">• Gboard - incompatible due to lack of integration with Android API for voice input</string>
     <string name="samsung_keyboard_one_ui_5" translatable="false">• Samsung Keyboard (One UI 5)</string>
@@ -40,7 +40,7 @@
     <string name="simple_keyboard" translatable="false">• Simple Keyboard</string>
     <string name="unexpected_keyboard" translatable="false">• Unexpected Keyboard (at least v1.23)</string>
     <string name="help_paragraph_9">Some non-keyboard apps also support voice input! Look for a voice button in Firefox, Organic Maps, etc.</string>
-    <string name="help_with_email">This app is still in development. Please report any issues or suggestions to voiceinput@futo.org</string>
+    <string name="help_with_email">This is an unofficial, modified version of FUTO Voice Input. Please report problems on the issue tracker of this fork, not to FUTO.</string>
     <string name="multilingual_enabled_english_will_be_slower">Multilingual enabled</string>
     <string name="using_smaller_models_accuracy_may_be_worse">Using smaller models, accuracy may be worse</string>
     <string name="using_smaller_model_accuracy_may_be_worse">Using smaller model, accuracy may be worse</string>
@@ -48,7 +48,7 @@
     <string name="using_larger_model_speed_may_be_slower">Using larger model, speed may be slower</string>
     <string name="using_non_default_models">Using non-default models</string>
     <string name="using_non_default_model">Using non-default model</string>
-    <string name="futo_voice_input_settings">FUTO Voice Input Settings</string>
+    <string name="futo_voice_input_settings">Lynx Voice Input Settings</string>
     <string name="help">Help</string>
     <string name="languages">Languages</string>
     <string name="model">Model</string>
@@ -58,7 +58,7 @@
     <string name="will_not_play_sounds_when_started_cancelled">Will not play sounds when started / cancelled</string>
     <string name="payment">Payment</string>
     <string name="credits">Credits</string>
-    <string name="thank_you_for_using_the_paid_version_of_futo_voice_input">Thank you for using the paid version of FUTO Voice Input!</string>
+    <string name="thank_you_for_using_the_paid_version_of_futo_voice_input">Thank you for using the paid version of Lynx Voice Input!</string>
     <string name="input_test_field">Input test field</string>
     <string name="trigger_voice_input_intent">Trigger voice input</string>
     <string name="try_saying_something">Try saying something</string>
@@ -74,18 +74,18 @@
     <string name="initializing">Initializing…</string>
     <string name="cancel">Cancel</string>
     <string name="futo_logo">FUTO Logo</string>
-    <string name="enable_ime_body">To integrate with existing keyboards, you need to enable the FUTO Voice Input Method. To avoid conflicts we recommend also disabling other voice input methods.</string>
+    <string name="enable_ime_body">To integrate with existing keyboards, you need to enable the Lynx Voice Input Method. To avoid conflicts we recommend also disabling other voice input methods.</string>
     <string name="open_input_method_settings">Open Input Method Settings</string>
     <string name="step_1_of_2">Step 1 of 2</string>
     <string name="step_2_of_2">Step 2 of 2</string>
     <string name="grant_microphone_body">In order to use Voice Input, you need to grant microphone permission.</string>
     <string name="grant_microphone_permission">Grant Microphone</string>
     <string name="incompatible_keyboard">Incompatible keyboard</string>
-    <string name="gboard_incompatible_details">You appear to be using Gboard. This keyboard is incompatible with FUTO Voice Input.\n\nGboard relies on its own voice typing system and does not appear to integrate with standard Android APIs for voice input at this time. You will need to use a different keyboard if you want to use FUTO Voice Input with your keyboard.\n\nPlease visit the Help page in settings for more information.</string>
+    <string name="gboard_incompatible_details">You appear to be using Gboard. This keyboard is incompatible with Lynx Voice Input.\n\nGboard relies on its own voice typing system and does not appear to integrate with standard Android APIs for voice input at this time. You will need to use a different keyboard if you want to use Lynx Voice Input with your keyboard.\n\nPlease visit the Help page in settings for more information.</string>
     <string name="gboard_incompatible_accept">I understand Gboard is incompatible</string>
-    <string name="swiftkey_incompatible_details">You appear to be using SwiftKey. Please be sure to disable \"Rich voice input\" in SwiftKey settings in order to make it use FUTO Voice Input.\n\nSome users have experienced bugs causing frequent text loss with SwiftKey. You may want to consider using a different keyboard.</string>
+    <string name="swiftkey_incompatible_details">You appear to be using SwiftKey. Please be sure to disable \"Rich voice input\" in SwiftKey settings in order to make it use Lynx Voice Input.\n\nSome users have experienced bugs causing frequent text loss with SwiftKey. You may want to consider using a different keyboard.</string>
     <string name="swiftkey_incompatible_accept">I\'ve disabled the toggle and understand</string>
-    <string name="typewise_incompatible_details">You appear to be using Typewise. This keyboard does not have a voice input button at this time, so you will need to use a different keyboard if you want to use FUTO Voice Input with your keyboard.</string>
+    <string name="typewise_incompatible_details">You appear to be using Typewise. This keyboard does not have a voice input button at this time, so you will need to use a different keyboard if you want to use Lynx Voice Input with your keyboard.</string>
     <string name="typewise_incompatible_accept">I understand Typewise is incompatible</string>
     <string name="intent_result_is_null_or_empty">Intent result is null or empty</string>
     <string name="intent_was_cancelled">Intent was cancelled</string>
@@ -99,8 +99,8 @@
     <string name="streaming_models">Streaming</string>
     <string name="nonstreaming_models">Batch</string>
     <string name="other_models">Other</string>
-    <string name="payment_text_1">You\'ve been using FUTO Voice Input for <xliff:g name="days" example="30">%d</xliff:g> days. If you find this app useful, please consider paying to support future development of FUTO software.</string>
-    <string name="payment_text_1_alt">Thank you for trying out FUTO Voice Input! If you find this app useful, please consider paying to support future development of FUTO software.</string>
+    <string name="payment_text_1">You\'ve been using Lynx Voice Input for <xliff:g name="days" example="30">%d</xliff:g> days. If you find this app useful, please consider paying to support future development of FUTO software.</string>
+    <string name="payment_text_1_alt">Thank you for trying out Lynx Voice Input! If you find this app useful, please consider paying to support future development of FUTO software.</string>
     <string name="payment_dev_notice">NOTE: Development has largely shifted to FUTO Keyboard and this app is not expected to receive any major updates at this time. Nevertheless, we would appreciate your support.</string>
     <string name="payment_text_2">FUTO is dedicated to making good software that doesn\'t abuse you. This app will never serve you ads or collect your personal data.</string>
     <string name="thank_you_for_purchasing_voice_input">Thank you for purchasing Voice Input!</string>
@@ -154,7 +154,7 @@
     <string name="wrong_default_body">It looks like the default voice input app is set to a different app (<xliff:g name="package" example="com.example.example">%s</xliff:g>). You may wish to change this.</string>
     <string name="clear_app_s_defaults">Clear app\'s defaults</string>
     <string name="dismiss">Dismiss</string>
-    <string name="samsung_keyboard_incompatible_details">You appear to be using Samsung Keyboard.\n\nUnfortunately, Samsung Keyboard is currently hardcoded to only allow the choice between Samsung Voice Input and Google Voice Input. You will need to use a different keyboard if you want to trigger FUTO Voice Input from your keyboard.\n\nPlease visit the Help page in settings for more information.</string>
+    <string name="samsung_keyboard_incompatible_details">You appear to be using Samsung Keyboard.\n\nUnfortunately, Samsung Keyboard is currently hardcoded to only allow the choice between Samsung Voice Input and Google Voice Input. You will need to use a different keyboard if you want to trigger Lynx Voice Input from your keyboard.\n\nPlease visit the Help page in settings for more information.</string>
     <string name="samsung_keyboard_incompatible_accept">I understand Samsung Keyboard is incompatible</string>
     <string name="payment_complete">Payment Complete</string>
     <string name="model_downloader">Model Downloader</string>
@@ -182,14 +182,14 @@
     <string name="amoled_dark_theme_name">AMOLED Dark Purple</string>
     <string name="classic_material_dark_theme_name">AOSP Material Dark</string>
     <string name="classic_material_light_theme_name">AOSP Material Light</string>
-    <string name="voice_input_theme_name">FUTO VI Theme</string>
+    <string name="voice_input_theme_name">Lynx VI Theme</string>
     <string name="dev_theme_name">Dev Theme Yellow</string>
 
     <string name="dynamic_system_theme_name">Dynamic System</string>
     <string name="dynamic_light_theme_name">Dynamic Light</string>
     <string name="dynamic_dark_theme_name">Dynamic Dark</string>
     <string name="theme">Theme</string>
-    <string name="support_thank_you_notice">Thank you for supporting FUTO Voice Input!</string>
+    <string name="support_thank_you_notice">Thank you for supporting Lynx Voice Input!</string>
     <string name="model_update_finish">Update has finished! To use the personal dictionary feature, visit the Model settings. If you have any feedback about the update, feel free to contact us.</string>
     <string name="model_update">Model Update</string>
     <string name="update_requires_your_attention">Update requires your attention</string>
@@ -206,10 +206,10 @@
     <string name="personal_dictionary">Personal Dictionary</string>
     <string name="personal_dictionary_no_comma_warning">Make sure to separate words by comma like: quick, brown, fox, FUTO</string>
     <string name="manual_language_selection_toggle_subtitle">Recommended</string>
-    <string name="unpaid_futo_voice_input">Unpaid FUTO Voice Input</string>
-    <string name="pay_for_futo_voice_input">Pay for FUTO Voice Input</string>
+    <string name="unpaid_futo_voice_input">Unpaid Lynx Voice Input</string>
+    <string name="pay_for_futo_voice_input">Pay for Lynx Voice Input</string>
     <string name="already_paid_title">Already paid?</string>
-    <string name="already_paid_body">If you already paid for FUTO Keyboard or FUTO Voice Input, tap below.</string>
+    <string name="already_paid_body">If you already paid for FUTO Keyboard or Lynx Voice Input, tap below.</string>
     <string name="remind_later">Remind later</string>
     <string name="remind_later_body">This will hide the reminder for the period of days entered.</string>
     <string name="sustainable_development_title">Sustainable Development</string>
@@ -223,7 +223,7 @@
     <string name="model_settings_model_doesnt_support_detection">The current model does not support language detection. Manual selection will be forced on.</string>
     <string name="model_settings_streaming_tier">Streaming tier</string>
     <string name="model_settings_streaming_tier_0">low (less accurate, less delayed)</string>
-    <string name="model_settings_streaming_tier_1">mid</string>
+    <string name="model_settings_streaming_tier_1">mid (default)</string>
     <string name="model_settings_streaming_tier_2">high (more accurate, more delayed)</string>
     <string name="model_settings_streaming_tier_3">no streaming</string>
 
@@ -238,7 +238,7 @@
     <string name="setup_which_voice_input_to_use_keyboard_details_2">Completely offline app</string>
     <string name="setup_which_voice_input_to_use_keyboard_details_3">Same privacy: your data stays on your device</string>
     <string name="setup_which_voice_input_to_use_keyboard_use">Keep using included voice input</string>
-    <string name="setup_which_voice_input_to_use_voice">FUTO Voice Input</string>
+    <string name="setup_which_voice_input_to_use_voice">Lynx Voice Input</string>
     <string name="setup_which_voice_input_to_use_voice_details_1">Has newer, more experimental models (Parakeet, 2025; Asr4All, 2026; and more)</string>
     <string name="setup_which_voice_input_to_use_voice_details_2">Internet access for downloads and updates</string>
     <string name="setup_which_voice_input_to_use_voice_details_3">Same privacy: your data stays on your device</string>
@@ -260,7 +260,7 @@
 
     <string name="voice_input_window_indicator_app_update_available">Update app</string>
     <string name="voice_input_window_indicator_model_update_available">Update model</string>
-    <string name="voice_input_window_indicator_model_requires_download">Model download required</string>
+    <string name="voice_input_window_indicator_model_requires_download">Model file required</string>
 
     <string name="tip_kind_tip">Tip</string>
     <string name="tip_kind_warning">Warning</string>

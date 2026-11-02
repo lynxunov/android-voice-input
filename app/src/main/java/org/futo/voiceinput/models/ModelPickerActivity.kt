@@ -136,9 +136,11 @@ private fun ModelPickerScreen() {
         scope.launch(Dispatchers.IO) {
             val id = model.storageId(context)
             val previous = context.getModelUri(model)
+            var permanent = true
             try {
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             } catch (e: SecurityException) {
+                permanent = false
                 Log.w("ModelPicker", "Could not persist read permission: ${e.message}")
             }
             if (previous != null && previous != uri) {
@@ -149,9 +151,11 @@ private fun ModelPickerScreen() {
 
             val shown = context.displayName(uri)
             val expected = (model as? ModelDownloadable)?.let { listOf(it.ggmlFile) + it.backwardsCompatFiles }
-            notes[id] = if (expected != null && shown != null && shown !in expected) {
-                context.getString(R.string.lynx_name_mismatch, shown, expected.first())
-            } else ""
+            notes[id] = listOfNotNull(
+                if (expected != null && shown != null && shown !in expected)
+                    context.getString(R.string.lynx_name_mismatch, shown, expected.first()) else null,
+                if (!permanent) context.getString(R.string.lynx_not_permanent) else null,
+            ).joinToString("\n")
 
             context.selectIfCurrentIsMissing(model)
             withContext(Dispatchers.Main) { ModelPickerActivity.picksCompleted.intValue++ }

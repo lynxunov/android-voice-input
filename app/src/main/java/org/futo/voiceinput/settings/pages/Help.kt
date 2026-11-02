@@ -175,7 +175,6 @@ fun HelpScreen(navController: NavHostController = rememberNavController()) {
 
 
         textItem(stringResource(R.string.help_with_email))
-        ShareFeedbackOption()
         IssueTrackerOption()
     }
 }

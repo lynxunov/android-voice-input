@@ -1,3 +1,17 @@
+# Lynx Voice Input
+
+> **Unofficial, modified fork of [FUTO Voice Input](https://github.com/futo-org/voice-input).**
+> Not affiliated with or endorsed by FUTO. The original software is Copyright FUTO and is used under the
+> [FUTO Source First License 1.1](LICENSE.md) (non-commercial use only). This fork has been modified –
+> see [FORK.md](FORK.md) for exactly what changed.
+
+Private, offline speech-to-text for Android: no network permission, no telemetry, no payment or update
+components, and model files are chosen from device storage instead of being downloaded by the app.
+
+---
+
+## Original README (FUTO)
+
 # FUTO Voice Input
 
 FUTO Voice Input is an application that lets you do speech-to-text on Android, integrating with third party keyboards or apps that use the generic speech-to-text APIs.

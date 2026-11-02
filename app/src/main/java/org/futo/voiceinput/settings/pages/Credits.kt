@@ -92,6 +92,12 @@ fun CreditsScreen(openDependencies: () -> Unit = {}, navController: NavHostContr
     SettingsRootList {
         ScreenTitle(title = stringResource(id = R.string.credits_title), showBack = true, navController = navController)
 
+        Text(
+            stringResource(R.string.lynx_modified_notice),
+            style = Typography.Body.Regular,
+            modifier = Modifier.padding(8.dp)
+        )
+
         CreditItem(
             name = "OpenAI Whisper",
             thanksFor = stringResource(R.string.thanks_for_the_voice_recognition_model),

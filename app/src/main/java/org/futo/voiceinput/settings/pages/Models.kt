@@ -59,11 +59,13 @@ import org.futo.voiceinput.theme.Typography
 @Composable
 fun modelsSubtitle(): String? {
     val context = LocalContext.current
-    val models = remember {
-        context.loadCurrentModelList()
+    val picks = ModelPickerActivity.picksCompleted.intValue
+    val models = remember(picks) {
+        // Fork change: there is no bundled model, so only list models that actually have a file.
+        context.loadCurrentModelList().filter { it.exists(context) }
     }
 
-    return models.joinToString { context.getString(it.name) }
+    return models.takeIf { it.isNotEmpty() }?.joinToString { context.getString(it.name) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

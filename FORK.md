@@ -1,8 +1,14 @@
-# Fork notes (lynxunov/android-voice-input)
+# Fork notes – Lynx Voice Input (lynxunov/android-voice-input)
 
 Based on [futo-org/voice-input](https://github.com/futo-org/voice-input). This file lists every
 intentional difference so that syncing with upstream stays mechanical:
 `git fetch upstream && git merge upstream/master` — conflicts can only be in the places below.
+
+## License
+Same terms as upstream: [FUTO Source First License 1.1](LICENSE.md) – non-commercial use only, no removal of
+the Licensor's notices, and a prominent notice that this copy is modified (this file, the README banner and the
+in-app *Credits* screen). The app name is **Lynx Voice Input**; it deliberately does not use FUTO's name.
+This is a personal-use fork.
 
 ## Goals
 Private, offline, on-device. Single flavor (`fDroid`). No telemetry, no payments, no update checker,
@@ -28,8 +34,10 @@ All call sites (notices, update checks, payment routes, dev settings, "what's ne
 `Advanced`, `InputTest`, `Credits`, `Help`.
 
 **Added**
-- `LynxVoiceInputApplication.kt`: loads `libvoiceinput.so` and owns the shared `ModelManager`
-  (the two useful things upstream's `CrashLoggingApplication` did), without any crash reporting.
+- `LynxVoiceInputApplication.kt`: replaces upstream's `CrashLoggingApplication` minus crash reporting.
+  It must keep doing the three useful things that class did: load `libvoiceinput.so`, own the shared
+  `ModelManager`, and call `DataStoreHelper.init()` (without it every blocking `getSetting()` silently
+  returns its default).
 - `models/`: Model Manager. The user picks each model file with the system file picker; the file is
   used in place (persisted SAF permission, loaded through `/proc/self/fd`, never copied; a temporary
   copy is only made as a fallback if a provider refuses direct access).
@@ -44,7 +52,15 @@ All call sites (notices, update checks, payment routes, dev settings, "what's ne
   (`DEFAULT_ENGLISH_MODEL_IDX` adjusted accordingly).
 - `shared/.../AudioRecognizer.kt`: `openPermissionSettings` opens this app instead of an activity
   that only exists inside FUTO Keyboard.
-- `settings/pages/Models.kt`: permanent link to the Model Manager.
+- `settings/pages/Models.kt`: permanent link to the Model Manager; the subtitle only lists models that have a file.
+- `strings.xml` (English): app name and in-text product name -> "Lynx Voice Input", streaming tier "mid (default)",
+  "Model file required" (was "download required"), feedback text points to this fork. `shared/.../strings-voiceinput.xml`:
+  "(Default)" removed from the asr4all M-56 name (it only meant "bundled").
+- `Home.kt` / `Help.kt`: the e-mail feedback button (FUTO's support address) is removed; the issue-tracker link
+  points to this fork. `Credits.kt`: modification notice at the top.
+
+## Known upstream issues (not fixed here)
+- Some themes (e.g. "AMOLED Dark Purple") do not apply correctly – also present in FUTO's own release.
 
 ## Syncing with upstream
 ```

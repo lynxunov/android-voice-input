@@ -20,4 +20,6 @@
     <string name="lynx_verify_bad">Checksum does not match the official file – it may be corrupt or a different version</string>
     <string name="lynx_verify_failed">Could not read the file</string>
     <string name="lynx_name_mismatch">The selected file is named %1$s but %2$s was expected. Make sure it is the right model.</string>
+    <string name="lynx_not_permanent">Android did not allow permanent access to this file, so it may stop working after a restart. Try choosing it from another location (e.g. Downloads).</string>
+    <string name="lynx_modified_notice">Lynx Voice Input is an unofficial, modified version of FUTO Voice Input (https://voiceinput.futo.org), Copyright FUTO, used under the FUTO Source First License 1.1 (non-commercial use). It is not affiliated with or endorsed by FUTO. Modifications: no network access, no payment/update/crash-reporting components, and model files are chosen from device storage instead of being downloaded.</string>
 </resources>
