@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.text.format.Formatter
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -38,9 +39,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.futo.voiceinput.LynxVoiceInputApplication
 import org.futo.voiceinput.R
 import org.futo.voiceinput.openURI
 import org.futo.voiceinput.settings.ENGLISH_MODEL_INDEX
@@ -49,6 +52,7 @@ import org.futo.voiceinput.settings.getSetting
 import org.futo.voiceinput.settings.setSetting
 import org.futo.voiceinput.shared.ENGLISH_MODELS
 import org.futo.voiceinput.shared.MULTILINGUAL_MODELS
+import org.futo.voiceinput.shared.ggml.InvalidModelException
 import org.futo.voiceinput.shared.types.ModelDownloadable
 import org.futo.voiceinput.shared.types.ModelLoader
 import org.futo.voiceinput.theme.UixThemeAuto
@@ -99,6 +103,33 @@ private fun sha256Hex(context: Context, uri: Uri): String? = try {
     }
 } catch (e: Exception) { null }
 
+/** Compares the chosen file with the official checksum. Null if this model has no known checksum. */
+private fun verifyMessage(context: Context, model: ModelLoader): String? {
+    val expected = (model as? ModelDownloadable)?.checksum ?: return null
+    val actual = context.getModelUri(model)?.let { sha256Hex(context, it) }
+    return when {
+        actual == null -> context.getString(R.string.lynx_verify_failed)
+        actual.equals(expected, ignoreCase = true) -> context.getString(R.string.lynx_verify_ok)
+        else -> context.getString(R.string.lynx_verify_bad)
+    }
+}
+
+/** Really loads the model once (then frees it) and reports how it went. */
+private suspend fun testLoad(context: Context, model: ModelLoader): String {
+    val id = model.storageId(context)
+    return try {
+        LynxVoiceInputApplication.getModelManager(context) // makes sure the native library is loaded
+        model.withSafStorage(context).loadGGML(context).close()
+        context.getString(R.string.lynx_test_ok, SafBackedModel.lastReport(id)?.summary.orEmpty())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: InvalidModelException) {
+        context.getString(R.string.lynx_test_failed, SafBackedModel.lastReport(id)?.summary ?: e.message.orEmpty())
+    } catch (e: Throwable) {
+        context.getString(R.string.lynx_test_failed, e.toString())
+    }
+}
+
 /**
  * Saves the user a second trip into "Model options": if the model that is currently selected has no
  * file but the one just picked could be used instead, select the picked one.
@@ -123,6 +154,8 @@ private fun ModelPickerScreen() {
     val refresh = ModelPickerActivity.picksCompleted.intValue
     val pending = remember { mutableStateOf<ModelLoader?>(null) }
     val notes = remember { mutableStateMapOf<String, String>() }
+    val verify = remember { mutableStateMapOf<String, String>() }
+    val tests = remember { mutableStateMapOf<String, String>() }
 
     // The same model can be listed for both English and multilingual use; show it once.
     val english = ENGLISH_MODELS
@@ -147,7 +180,9 @@ private fun ModelPickerScreen() {
                 try { context.contentResolver.releasePersistableUriPermission(previous, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
                 catch (_: Exception) { }
             }
+            SafBackedModel.deletePrivateCopy(context, id) // a different file => any old private copy is stale
             context.setModelUri(model, uri)
+            verify.remove(id); tests.remove(id)
 
             val shown = context.displayName(uri)
             val expected = (model as? ModelDownloadable)?.let { listOf(it.ggmlFile) + it.backwardsCompatFiles }
@@ -159,6 +194,12 @@ private fun ModelPickerScreen() {
 
             context.selectIfCurrentIsMissing(model)
             withContext(Dispatchers.Main) { ModelPickerActivity.picksCompleted.intValue++ }
+
+            // One automatic checksum check for a newly chosen file. Informational only: it never undoes the choice.
+            if (model is ModelDownloadable) {
+                verify[id] = context.getString(R.string.lynx_verify_running)
+                verify[id] = verifyMessage(context, model).orEmpty()
+            }
         }
     }
 
@@ -182,12 +223,12 @@ private fun ModelPickerScreen() {
 
         Text(stringResource(R.string.lynx_models_english), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
         english.forEach { model ->
-            ModelRow(model, refresh, notes, onChoose = { pending.value = model; picker.launch(arrayOf("*/*")) })
+            ModelRow(model, refresh, notes, verify, tests, onChoose = { pending.value = model; picker.launch(arrayOf("*/*")) })
         }
 
         Text(stringResource(R.string.lynx_models_multilingual), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
         multilingual.forEach { model ->
-            ModelRow(model, refresh, notes, onChoose = { pending.value = model; picker.launch(arrayOf("*/*")) })
+            ModelRow(model, refresh, notes, verify, tests, onChoose = { pending.value = model; picker.launch(arrayOf("*/*")) })
         }
 
         Spacer(Modifier.height(32.dp))
@@ -199,13 +240,16 @@ private fun ModelRow(
     model: ModelLoader,
     refresh: Int,
     notes: MutableMap<String, String>,
+    verify: MutableMap<String, String>,
+    tests: MutableMap<String, String>,
     onChoose: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val id = model.storageId(context)
     val ready = remember(refresh) { model.withSafStorage(context).exists(context) }
-    val verifyText = remember { mutableStateOf("") }
+    val copyBytes = remember(refresh) { SafBackedModel.privateCopySize(context, id) }
+    val lastFailure = remember(refresh) { SafBackedModel.lastReport(id)?.takeIf { !it.ok }?.summary }
     val fileName = (model as? ModelDownloadable)?.ggmlFile
 
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
@@ -222,8 +266,24 @@ private fun ModelRow(
             notes[id]?.takeIf { it.isNotBlank() }?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
-            if (verifyText.value.isNotBlank()) {
-                Text(verifyText.value, style = MaterialTheme.typography.bodySmall)
+            verify[id]?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            (tests[id] ?: lastFailure?.let { context.getString(R.string.lynx_last_load_failed, it) })
+                ?.takeIf { it.isNotBlank() }
+                ?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            if (copyBytes > 0) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.lynx_private_copy, Formatter.formatShortFileSize(context, copyBytes)),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = {
+                        scope.launch(Dispatchers.IO) {
+                            SafBackedModel.deletePrivateCopy(context, id)
+                            withContext(Dispatchers.Main) { ModelPickerActivity.picksCompleted.intValue++ }
+                        }
+                    }) { Text(stringResource(R.string.lynx_delete_copy)) }
+                }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -239,7 +299,8 @@ private fun ModelRow(
                                 try { context.contentResolver.releasePersistableUriPermission(old, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
                                 catch (_: Exception) { }
                             }
-                            notes.remove(id)
+                            SafBackedModel.deletePrivateCopy(context, id)
+                            notes.remove(id); verify.remove(id); tests.remove(id)
                             withContext(Dispatchers.Main) { ModelPickerActivity.picksCompleted.intValue++ }
                         }
                     }) { Text(stringResource(R.string.lynx_remove)) }
@@ -251,21 +312,21 @@ private fun ModelRow(
                         Text(stringResource(R.string.lynx_download_link))
                     }
                 }
-                val expectedChecksum = (model as? ModelDownloadable)?.checksum
-                if (ready && expectedChecksum != null) {
+                if (ready && model is ModelDownloadable) {
                     TextButton(onClick = {
-                        verifyText.value = context.getString(R.string.lynx_verify_running)
-                        scope.launch(Dispatchers.IO) {
-                            val uri = context.getModelUri(model)
-                            val actual = uri?.let { sha256Hex(context, it) }
-                            val message = when {
-                                actual == null -> context.getString(R.string.lynx_verify_failed)
-                                actual.equals(expectedChecksum, ignoreCase = true) -> context.getString(R.string.lynx_verify_ok)
-                                else -> context.getString(R.string.lynx_verify_bad)
-                            }
-                            withContext(Dispatchers.Main) { verifyText.value = message }
-                        }
+                        verify[id] = context.getString(R.string.lynx_verify_running)
+                        scope.launch(Dispatchers.IO) { verify[id] = verifyMessage(context, model).orEmpty() }
                     }) { Text(stringResource(R.string.lynx_verify)) }
+                }
+                if (ready) {
+                    TextButton(onClick = {
+                        tests[id] = context.getString(R.string.lynx_test_running)
+                        scope.launch(Dispatchers.IO) {
+                            val message = testLoad(context, model)
+                            tests[id] = message
+                            withContext(Dispatchers.Main) { ModelPickerActivity.picksCompleted.intValue++ }
+                        }
+                    }) { Text(stringResource(R.string.lynx_test_load)) }
                 }
             }
         }

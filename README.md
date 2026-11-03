@@ -5,8 +5,9 @@
 > [FUTO Source First License 1.1](LICENSE.md) (non-commercial use only). This fork has been modified –
 > see [FORK.md](FORK.md) for exactly what changed.
 
-Private, offline speech-to-text for Android: no network permission, no telemetry, no payment or update
-components, and model files are chosen from device storage instead of being downloaded by the app.
+Private, offline speech-to-text for Android: no network permission, no telemetry, no in-app billing,
+update checker or crash reporting, and model files are chosen from device storage instead of being
+downloaded by the app. A link to support FUTO (opens in your browser) is kept in the app.
 
 ---
 

@@ -182,6 +182,12 @@ fun HomeScreen(
         )
 
         NavigationItem(
+            title = stringResource(R.string.lynx_support_futo),
+            style = NavigationItemStyle.Misc,
+            navigate = { navController.navigate("supportFuto") },
+            icon = painterResource(R.drawable.dollar_sign)
+        )
+        NavigationItem(
             title = stringResource(R.string.credits),
             style = NavigationItemStyle.Misc,
             navigate = { navController.navigate("credits") },

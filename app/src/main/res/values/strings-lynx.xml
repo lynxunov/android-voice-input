@@ -21,5 +21,15 @@
     <string name="lynx_verify_failed">Could not read the file</string>
     <string name="lynx_name_mismatch">The selected file is named %1$s but %2$s was expected. Make sure it is the right model.</string>
     <string name="lynx_not_permanent">Android did not allow permanent access to this file, so it may stop working after a restart. Try choosing it from another location (e.g. Downloads).</string>
-    <string name="lynx_modified_notice">Lynx Voice Input is an unofficial, modified version of FUTO Voice Input (https://voiceinput.futo.org), Copyright FUTO, used under the FUTO Source First License 1.1 (non-commercial use). It is not affiliated with or endorsed by FUTO. Modifications: no network access, no payment/update/crash-reporting components, and model files are chosen from device storage instead of being downloaded.</string>
+    <string name="lynx_modified_notice">Lynx Voice Input is an unofficial, modified version of FUTO Voice Input (https://voiceinput.futo.org), Copyright FUTO, used under the FUTO Source First License 1.1 (non-commercial use). It is not affiliated with or endorsed by FUTO. Modifications: no network access, no in-app billing, update checking or crash reporting (a link to support FUTO is kept), and model files are chosen from device storage instead of being downloaded.</string>
+    <string name="lynx_test_load">Test load</string>
+    <string name="lynx_test_running">Loading…</string>
+    <string name="lynx_test_ok">Loads fine: %1$s</string>
+    <string name="lynx_test_failed">Could not load: %1$s</string>
+    <string name="lynx_last_load_failed">Last attempt to use it failed: %1$s</string>
+    <string name="lynx_private_copy">Private copy in app storage: %1$s</string>
+    <string name="lynx_delete_copy">Delete copy</string>
+    <string name="lynx_support_futo">Support FUTO</string>
+    <string name="lynx_support_futo_text">Lynx Voice Input is based on FUTO Voice Input, which FUTO develops and which is free for personal, non-commercial use. If you find it useful, please consider supporting FUTO. The button opens FUTO\'s payment page in your web browser. This app has no internet access itself and sends nothing.</string>
+    <string name="lynx_support_futo_button">Open FUTO payment page</string>
 </resources>

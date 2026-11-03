@@ -47,6 +47,7 @@ import org.futo.voiceinput.settings.pages.InputScreen
 import org.futo.voiceinput.settings.pages.LanguagesScreen
 import org.futo.voiceinput.settings.pages.ModelsScreen
 import org.futo.voiceinput.settings.pages.TestScreen
+import org.futo.voiceinput.settings.pages.SupportFutoScreen
 import org.futo.voiceinput.settings.pages.ThemeScreen
 
 
@@ -129,6 +130,8 @@ fun SettingsMain(
         composable("models") { ModelsScreen(settingsViewModel, navController) }
         composable("input") { InputScreen(settingsViewModel, navController) }
         composable("themes") { ThemeScreen(navController) }
+
+        composable("supportFuto") { SupportFutoScreen(navController) }
 
         composable("credits") {
             CreditsScreen(openDependencies = {
