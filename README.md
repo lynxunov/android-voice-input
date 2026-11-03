@@ -1,4 +1,4 @@
-# Lynx Voice Input
+# Lynx Voice Input (in development)
 
 > **Unofficial, modified fork of [FUTO Voice Input](https://github.com/futo-org/voice-input).**
 > Not affiliated with or endorsed by FUTO. The original software is Copyright FUTO and is used under the
