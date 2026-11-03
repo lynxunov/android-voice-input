@@ -1,7 +1,6 @@
 package org.futo.voiceinput
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.speech.RecognizerIntent
@@ -11,11 +10,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,30 +30,24 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.LifecycleCoroutineScope
 import androidx.lifecycle.lifecycleScope
-import org.futo.voiceinput.migration.scheduleModelMigrationJob
+import org.futo.voiceinput.shared.ModelDoesNotExistException
+import org.futo.voiceinput.shared.RecognizerView
+import org.futo.voiceinput.shared.RecognizerViewListener
+import org.futo.voiceinput.shared.ui.MicrophoneDeviceState
 import org.futo.voiceinput.theme.UixThemeAuto
 
-// ConditionalUnpaidNoticeInVoiceInputWindow removed — no payment infrastructure.
-// scheduleUpdateCheckingJob removed — no update checker in this fork.
 
 @Composable
-fun RecognizeWindow(
-    allowClick: Boolean = false,
-    onClose: (() -> Unit)?,
-    onPauseVAD: (Boolean) -> Unit = { },
-    onFinish: () -> Unit = { },
-    content: @Composable ColumnScope.() -> Unit
-) {
-    UixThemeAuto {
+fun RecognizeWindow(allowClick: Boolean = false, onClose: (() -> Unit)?, onPauseVAD: (Boolean) -> Unit = { }, onFinish: () -> Unit = { }, useSafeDrawingPadding: Boolean = true, content: @Composable () -> Unit) {
+    UixThemeAuto(useSafeDrawingPadding = useSafeDrawingPadding) {
         Surface(
             modifier = Modifier
                 .recognizerSurfaceClickable(disabled = !allowClick, onPauseVAD = onPauseVAD, onFinish = onFinish)
                 .width(280.dp)
-                .wrapContentHeight(),
+                .wrapContentHeight()
+                .heightIn(200.dp),
             color = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(8.dp)
         ) {
@@ -64,18 +56,29 @@ fun RecognizeWindow(
 
             Column(modifier = Modifier.drawBehind {
                 with(icon) {
-                    translate(left = -icon.intrinsicSize.width / 2, top = -icon.intrinsicSize.height / 2) {
+                    translate(left = -icon.intrinsicSize.width/2, top = -icon.intrinsicSize.height/2) {
                         translate(left = size.width / 4, top = size.height / 3) {
                             draw(icon.intrinsicSize, colorFilter = ColorFilter.tint(bgIconTint))
                         }
                     }
                 }
-            }) {
+            }){}
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                content()
+            }
+
+            Column {
                 Box(modifier = Modifier.fillMaxWidth()) {
-                    // Payment notice removed
                     Box(modifier = Modifier.align(Alignment.CenterEnd)) {
                         if (onClose != null) {
-                            IconButton(onClick = onClose) {
+                            IconButton(
+                                onClick = onClose
+                            ) {
                                 Icon(
                                     Icons.Default.Close,
                                     contentDescription = "Cancel",
@@ -87,64 +90,68 @@ fun RecognizeWindow(
                         }
                     }
                 }
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(0.dp, 0.dp, 0.dp, 40.dp)
-                ) {
-                    content()
-                }
             }
+
+
         }
     }
 }
 
-@Preview
-@Composable
-fun RecognizeLoadingPreview() {
-    RecognizeWindow(onClose = { }) { RecognizeLoadingCircle() }
-}
-
-@Preview
-@Composable
-fun PreviewRecognizeViewLoaded() {
-    RecognizeWindow(onClose = { }) { InnerRecognize() }
-}
-
-@Preview
-@Composable
-fun PreviewRecognizeViewNoMic() {
-    RecognizeWindow(onClose = { }) { RecognizeMicError(openSettings = { }) }
-}
-
 class RecognizeActivity : ComponentActivity() {
-    private val recognizer = object : RecognizerView() {
-        override val context: Context get() = this@RecognizeActivity
-        override val lifecycleScope: LifecycleCoroutineScope get() = this@RecognizeActivity.lifecycleScope
+    private var recognizer: RecognizerView? = null
+    private var onPermissionGranted: () -> Unit = {}
+    private var onPermissionRejected: () -> Unit = {}
 
-        override fun setContent(content: @Composable () -> Unit) {
-            this@RecognizeActivity.setContent { content() }
-        }
+    fun initRecognizerView(): Boolean {
+        val settings = loadRecognizerSettings(inlinePartialResult = true)
+        recognizer = RecognizerView(
+            context = this@RecognizeActivity,
+            listener = object : RecognizerViewListener {
+                override fun cancelled() {
+                    onCancel()
+                }
 
-        override fun onCancel() { this@RecognizeActivity.onCancel() }
-        override fun sendResult(result: String) { this@RecognizeActivity.sendResult(result) }
-        override fun sendPartialResult(result: String): Boolean = false
-        override fun requestPermission() { this@RecognizeActivity.requestPermission() }
-        override fun decodingStarted() {}
+                override fun recordingStarted(device: MicrophoneDeviceState) {
 
-        @Composable
-        override fun Window(
-            onClose: () -> Unit,
-            allowClick: Boolean,
-            onPauseVAD: (Boolean) -> Unit,
-            onFinish: () -> Unit,
-            content: @Composable ColumnScope.() -> Unit
-        ) {
-            RecognizeWindow(onClose = onClose, onPauseVAD = onPauseVAD, onFinish = onFinish, allowClick = allowClick) {
-                content()
-            }
-        }
+                }
+
+                override fun finished(result: String) {
+                    this@RecognizeActivity.sendResult(result)
+                }
+
+                override fun partialResult(result: String) {
+
+                }
+
+                override fun requestPermission(
+                    onGranted: () -> Unit,
+                    onRejected: () -> Unit
+                ): Boolean {
+                    this@RecognizeActivity.onPermissionGranted = onGranted
+                    this@RecognizeActivity.onPermissionRejected = onRejected
+                    this@RecognizeActivity.requestPermission()
+                    return true
+                }
+
+                override fun openSettings() {
+
+                }
+
+                override fun modelNotFound() {
+                    val models = listOf(
+                        settings.modelRunConfiguration.primaryModel
+                    ) + settings.modelRunConfiguration.languageSpecificModels.values
+
+                    startModelDownloadActivity(models)
+                    onCancel()
+                }
+
+            },
+            settings = settings,
+            lifecycleScope = this@RecognizeActivity.lifecycleScope,
+            modelManager = LynxVoiceInputApplication.getModelManager(this@RecognizeActivity)!!,
+        )
+        return true
     }
 
     private fun onCancel() {
@@ -154,27 +161,51 @@ class RecognizeActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        recognizer.reset()
-        recognizer.init()
-        // scheduleUpdateCheckingJob intentionally omitted
-        scheduleModelMigrationJob(applicationContext)
+        if(recognizer == null) {
+            if(!initRecognizerView()) {
+                return
+            }
+        }
+        recognizer!!.reset()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        recognizer!!.start()
+
+        setContent {
+            RecognizeWindow(
+                allowClick = recognizer!!.isFinishable.value,
+                onClose = { recognizer!!.cancel() },
+                onPauseVAD = { v ->
+                    recognizer!!.inhibitAutoStop(v)
+                },
+                onFinish = { recognizer!!.finish() }
+            ) {
+                recognizer!!.Content()
+            }
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        recognizer.reset()
+
+        recognizer!!.reset()
     }
 
     private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-        if (it) recognizer.permissionResultGranted() else recognizer.permissionResultRejected()
+        if(it){
+            onPermissionGranted()
+        } else {
+            onPermissionRejected()
+        }
     }
-
-    private fun requestPermission() { permission.launch(Manifest.permission.RECORD_AUDIO) }
+    private fun requestPermission() {
+        permission.launch(Manifest.permission.RECORD_AUDIO)
+    }
 
     private fun sendResult(result: String) {
         val returnIntent = Intent()
-        returnIntent.putStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS, ArrayList(listOf(result)))
+
+        val results = listOf(result)
+        returnIntent.putStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS, ArrayList(results))
         returnIntent.putExtra(RecognizerIntent.EXTRA_CONFIDENCE_SCORES, floatArrayOf(1.0f))
         setResult(RESULT_OK, returnIntent)
         finish()

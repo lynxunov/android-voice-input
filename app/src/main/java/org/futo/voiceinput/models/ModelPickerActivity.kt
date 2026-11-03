@@ -1,8 +1,12 @@
 package org.futo.voiceinput.models
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
+import android.text.format.Formatter
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -15,43 +19,59 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.FilledTonalIconButton
-import androidx.compose.material3.Icon
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.futo.voiceinput.LynxVoiceInputApplication
 import org.futo.voiceinput.R
 import org.futo.voiceinput.openURI
+import org.futo.voiceinput.settings.ENGLISH_MODEL_INDEX
+import org.futo.voiceinput.settings.MULTILINGUAL_MODEL_INDEX
+import org.futo.voiceinput.settings.getSetting
+import org.futo.voiceinput.settings.setSetting
+import org.futo.voiceinput.shared.ENGLISH_MODELS
+import org.futo.voiceinput.shared.MULTILINGUAL_MODELS
+import org.futo.voiceinput.shared.ggml.InvalidModelException
+import org.futo.voiceinput.shared.types.ModelDownloadable
+import org.futo.voiceinput.shared.types.ModelLoader
 import org.futo.voiceinput.theme.UixThemeAuto
+import java.security.MessageDigest
+
+private const val MODEL_INFO_URL = "https://github.com/futo-org/whisper-acft"
+private const val MODEL_DOWNLOAD_BASE = "https://dl.voiceinput.futo.org/VoiceInput/"
 
 /**
- * Replaces DownloadActivity — no network access.
- * Models are opened in-place via SAF; a persisted URI permission survives reboots.
+ * Replaces upstream's DownloadActivity. The app has no INTERNET permission, so the user downloads model
+ * files with a browser and selects them here with the system file picker. A persistable permission is
+ * taken so the file stays readable after a reboot; the file is used in place and never copied.
  */
 class ModelPickerActivity : ComponentActivity() {
+    companion object {
+        /** Incremented whenever a file is chosen or removed, so other screens can refresh. */
+        val picksCompleted = mutableIntStateOf(0)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -64,34 +84,121 @@ class ModelPickerActivity : ComponentActivity() {
     }
 }
 
+private fun Context.displayName(uri: Uri): String? = try {
+    contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+        if (it.moveToFirst()) it.getString(0) else null
+    }
+} catch (e: Exception) { null }
+
+private fun sha256Hex(context: Context, uri: Uri): String? = try {
+    context.contentResolver.openInputStream(uri)?.use { stream ->
+        val digest = MessageDigest.getInstance("SHA-256")
+        val buffer = ByteArray(1 shl 16)
+        while (true) {
+            val n = stream.read(buffer)
+            if (n < 0) break
+            digest.update(buffer, 0, n)
+        }
+        digest.digest().joinToString("") { "%02x".format(it) }
+    }
+} catch (e: Exception) { null }
+
+/** Compares the chosen file with the official checksum. Null if this model has no known checksum. */
+private fun verifyMessage(context: Context, model: ModelLoader): String? {
+    val expected = (model as? ModelDownloadable)?.checksum ?: return null
+    val actual = context.getModelUri(model)?.let { sha256Hex(context, it) }
+    return when {
+        actual == null -> context.getString(R.string.lynx_verify_failed)
+        actual.equals(expected, ignoreCase = true) -> context.getString(R.string.lynx_verify_ok)
+        else -> context.getString(R.string.lynx_verify_bad)
+    }
+}
+
+/** Really loads the model once (then frees it) and reports how it went. */
+private suspend fun testLoad(context: Context, model: ModelLoader): String {
+    val id = model.storageId(context)
+    return try {
+        LynxVoiceInputApplication.getModelManager(context) // makes sure the native library is loaded
+        model.withSafStorage(context).loadGGML(context).close()
+        context.getString(R.string.lynx_test_ok, SafBackedModel.lastReport(id)?.summary.orEmpty())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: InvalidModelException) {
+        context.getString(R.string.lynx_test_failed, SafBackedModel.lastReport(id)?.summary ?: e.message.orEmpty())
+    } catch (e: Throwable) {
+        context.getString(R.string.lynx_test_failed, e.toString())
+    }
+}
+
+/**
+ * Saves the user a second trip into "Model options": if the model that is currently selected has no
+ * file but the one just picked could be used instead, select the picked one.
+ */
+private suspend fun Context.selectIfCurrentIsMissing(picked: ModelLoader) {
+    val pickedKey = picked.key(this)
+
+    ENGLISH_MODELS.indexOfFirst { it.key(this) == pickedKey }.takeIf { it >= 0 }?.let { idx ->
+        val current = ENGLISH_MODELS.getOrNull(getSetting(ENGLISH_MODEL_INDEX))
+        if (current == null || !current.withSafStorage(this).exists(this)) setSetting(ENGLISH_MODEL_INDEX, idx)
+    }
+    MULTILINGUAL_MODELS.indexOfFirst { it.key(this) == pickedKey }.takeIf { it >= 0 }?.let { idx ->
+        val current = MULTILINGUAL_MODELS.getOrNull(getSetting(MULTILINGUAL_MODEL_INDEX))
+        if (current == null || !current.withSafStorage(this).exists(this)) setSetting(MULTILINGUAL_MODEL_INDEX, idx)
+    }
+}
+
 @Composable
 private fun ModelPickerScreen() {
-    val scope = rememberCoroutineScope()
-    var slotStatus by remember { mutableStateOf<Map<ModelSlot, Boolean>>(emptyMap()) }
-    var pendingSlot by remember { mutableStateOf<ModelSlot?>(null) }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val refresh = ModelPickerActivity.picksCompleted.intValue
+    val pending = remember { mutableStateOf<ModelLoader?>(null) }
+    val notes = remember { mutableStateMapOf<String, String>() }
+    val verify = remember { mutableStateMapOf<String, String>() }
+    val tests = remember { mutableStateMapOf<String, String>() }
 
-    LaunchedEffect(Unit) {
-        slotStatus = withContext(Dispatchers.IO) { context.allModelSlotStatus() }
-    }
+    // The same model can be listed for both English and multilingual use; show it once.
+    val english = ENGLISH_MODELS
+    val multilingual = MULTILINGUAL_MODELS.filter { m -> english.none { it.key(context) == m.key(context) } }
 
-    val filePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        val slot = pendingSlot ?: return@rememberLauncherForActivityResult
-        pendingSlot = null
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            withContext(Dispatchers.IO) {
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                } catch (e: SecurityException) {
-                    android.util.Log.w("ModelPicker", "Could not persist URI permission: ${e.message}")
-                }
-                context.setModelUri(slot, uri)
-                slotStatus = context.allModelSlotStatus()
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        val model = pending.value
+        pending.value = null
+        if (uri == null || model == null) return@rememberLauncherForActivityResult
+
+        scope.launch(Dispatchers.IO) {
+            val id = model.storageId(context)
+            val previous = context.getModelUri(model)
+            var permanent = true
+            try {
+                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (e: SecurityException) {
+                permanent = false
+                Log.w("ModelPicker", "Could not persist read permission: ${e.message}")
+            }
+            if (previous != null && previous != uri) {
+                try { context.contentResolver.releasePersistableUriPermission(previous, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                catch (_: Exception) { }
+            }
+            SafBackedModel.deletePrivateCopy(context, id) // a different file => any old private copy is stale
+            context.setModelUri(model, uri)
+            verify.remove(id); tests.remove(id)
+
+            val shown = context.displayName(uri)
+            val expected = (model as? ModelDownloadable)?.let { listOf(it.ggmlFile) + it.backwardsCompatFiles }
+            notes[id] = listOfNotNull(
+                if (expected != null && shown != null && shown !in expected)
+                    context.getString(R.string.lynx_name_mismatch, shown, expected.first()) else null,
+                if (!permanent) context.getString(R.string.lynx_not_permanent) else null,
+            ).joinToString("\n")
+
+            context.selectIfCurrentIsMissing(model)
+            withContext(Dispatchers.Main) { ModelPickerActivity.picksCompleted.intValue++ }
+
+            // One automatic checksum check for a newly chosen file. Informational only: it never undoes the choice.
+            if (model is ModelDownloadable) {
+                verify[id] = context.getString(R.string.lynx_verify_running)
+                verify[id] = verifyMessage(context, model).orEmpty()
             }
         }
     }
@@ -101,86 +208,27 @@ private fun ModelPickerScreen() {
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Model Manager", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.lynx_model_manager), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
 
         ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("About models", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "This app has no internet access. Download models externally and pick them here. " +
-                    "Files are read in-place — nothing is copied to app storage.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Button(
-                    onClick = { context.openURI(MODEL_DOWNLOAD_URL, newTask = true) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Open model download page ↗")
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.lynx_models_intro), style = MaterialTheme.typography.bodyMedium)
+                Button(onClick = { context.openURI(MODEL_INFO_URL, newTask = true) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.lynx_open_model_info))
                 }
-                Text(
-                    "Download the .bin files, then use the buttons below to assign each one.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
 
-        SectionHeader("English Models")
-        ModelSlot.values().filter { it.isEnglish }.forEach { slot ->
-            ModelSlotRow(
-                slot = slot,
-                isAvailable = slotStatus[slot] ?: false,
-                onPickClicked = {
-                    pendingSlot = slot
-                    filePicker.launch(arrayOf("application/octet-stream", "*/*"))
-                },
-                onClearClicked = {
-                    scope.launch {
-                        withContext(Dispatchers.IO) {
-                            context.clearModelUri(slot)
-                            slotStatus = context.allModelSlotStatus()
-                        }
-                    }
-                }
-            )
+        Text(stringResource(R.string.lynx_models_english), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+        english.forEach { model ->
+            ModelRow(model, refresh, notes, verify, tests, onChoose = { pending.value = model; picker.launch(arrayOf("*/*")) })
         }
 
-        SectionHeader("Multilingual Models")
-        ModelSlot.values().filter { !it.isEnglish }.forEach { slot ->
-            ModelSlotRow(
-                slot = slot,
-                isAvailable = slotStatus[slot] ?: false,
-                onPickClicked = {
-                    pendingSlot = slot
-                    filePicker.launch(arrayOf("application/octet-stream", "*/*"))
-                },
-                onClearClicked = {
-                    scope.launch {
-                        withContext(Dispatchers.IO) {
-                            context.clearModelUri(slot)
-                            slotStatus = context.allModelSlotStatus()
-                        }
-                    }
-                }
-            )
-        }
-
-        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Expected file names", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "English tiny   (built-in): tiny_en_acft_q8_0.bin.not.tflite\n" +
-                    "English base:              base_en_acft_q8_0.bin\n" +
-                    "English small:             small_en_acft_q8_0.bin\n" +
-                    "Multi tiny:                tiny_acft_q8_0.bin\n" +
-                    "Multi base:                base_acft_q8_0.bin\n" +
-                    "Multi small:               small_acft_q8_0.bin",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
+        Text(stringResource(R.string.lynx_models_multilingual), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+        multilingual.forEach { model ->
+            ModelRow(model, refresh, notes, verify, tests, onChoose = { pending.value = model; picker.launch(arrayOf("*/*")) })
         }
 
         Spacer(Modifier.height(32.dp))
@@ -188,59 +236,99 @@ private fun ModelPickerScreen() {
 }
 
 @Composable
-private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 4.dp)
-    )
-}
-
-@Composable
-private fun ModelSlotRow(
-    slot: ModelSlot,
-    isAvailable: Boolean,
-    onPickClicked: () -> Unit,
-    onClearClicked: () -> Unit
+private fun ModelRow(
+    model: ModelLoader,
+    refresh: Int,
+    notes: MutableMap<String, String>,
+    verify: MutableMap<String, String>,
+    tests: MutableMap<String, String>,
+    onChoose: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val id = model.storageId(context)
+    val ready = remember(refresh) { model.withSafStorage(context).exists(context) }
+    val copyBytes = remember(refresh) { SafBackedModel.privateCopySize(context, id) }
+    val lastFailure = remember(refresh) { SafBackedModel.lastReport(id)?.takeIf { !it.ok }?.summary }
+    val fileName = (model as? ModelDownloadable)?.ggmlFile
+
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Icon(
-                painter = painterResource(
-                    // alert_circle for not-ready; activity (checkmark-like) for ready
-                    if (isAvailable) R.drawable.activity else R.drawable.alert_circle
-                ),
-                contentDescription = null,
-                tint = if (isAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(24.dp)
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(stringResource(model.name), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                stringResource(if (ready) R.string.lynx_status_ready else R.string.lynx_status_missing),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (ready) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
             )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(slot.displayName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                Text(
-                    if (isAvailable) "Ready" else "Not configured",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (isAvailable) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            if (fileName != null) {
+                Text(stringResource(R.string.lynx_expected_file, fileName), style = MaterialTheme.typography.bodySmall)
             }
-            if (isAvailable) {
-                TextButton(onClick = onClearClicked) { Text("Clear") }
+            notes[id]?.takeIf { it.isNotBlank() }?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
-            FilledTonalIconButton(onClick = onPickClicked) {
-                Icon(
-                    painter = painterResource(R.drawable.cpu),
-                    contentDescription = "Pick file",
-                    modifier = Modifier.size(18.dp)
-                )
+            verify[id]?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            (tests[id] ?: lastFailure?.let { context.getString(R.string.lynx_last_load_failed, it) })
+                ?.takeIf { it.isNotBlank() }
+                ?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            if (copyBytes > 0) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.lynx_private_copy, Formatter.formatShortFileSize(context, copyBytes)),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = {
+                        scope.launch(Dispatchers.IO) {
+                            SafBackedModel.deletePrivateCopy(context, id)
+                            withContext(Dispatchers.Main) { ModelPickerActivity.picksCompleted.intValue++ }
+                        }
+                    }) { Text(stringResource(R.string.lynx_delete_copy)) }
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalButton(onClick = onChoose) {
+                    Text(stringResource(if (ready) R.string.lynx_replace_file else R.string.lynx_choose_file))
+                }
+                if (ready) {
+                    TextButton(onClick = {
+                        scope.launch(Dispatchers.IO) {
+                            val old = context.getModelUri(model)
+                            context.clearModelUri(model)
+                            if (old != null) {
+                                try { context.contentResolver.releasePersistableUriPermission(old, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                                catch (_: Exception) { }
+                            }
+                            SafBackedModel.deletePrivateCopy(context, id)
+                            notes.remove(id); verify.remove(id); tests.remove(id)
+                            withContext(Dispatchers.Main) { ModelPickerActivity.picksCompleted.intValue++ }
+                        }
+                    }) { Text(stringResource(R.string.lynx_remove)) }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (fileName != null) {
+                    TextButton(onClick = { context.openURI(MODEL_DOWNLOAD_BASE + fileName, newTask = true) }) {
+                        Text(stringResource(R.string.lynx_download_link))
+                    }
+                }
+                if (ready && model is ModelDownloadable) {
+                    TextButton(onClick = {
+                        verify[id] = context.getString(R.string.lynx_verify_running)
+                        scope.launch(Dispatchers.IO) { verify[id] = verifyMessage(context, model).orEmpty() }
+                    }) { Text(stringResource(R.string.lynx_verify)) }
+                }
+                if (ready) {
+                    TextButton(onClick = {
+                        tests[id] = context.getString(R.string.lynx_test_running)
+                        scope.launch(Dispatchers.IO) {
+                            val message = testLoad(context, model)
+                            tests[id] = message
+                            withContext(Dispatchers.Main) { ModelPickerActivity.picksCompleted.intValue++ }
+                        }
+                    }) { Text(stringResource(R.string.lynx_test_load)) }
+                }
             }
         }
     }
 }
-
-const val MODEL_DOWNLOAD_URL = "https://github.com/futo-org/voice-input-models/blob/main/README.md"

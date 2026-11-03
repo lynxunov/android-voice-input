@@ -1,3 +1,18 @@
+# Lynx Voice Input
+
+> **Unofficial, modified fork of [FUTO Voice Input](https://github.com/futo-org/voice-input).**
+> Not affiliated with or endorsed by FUTO. The original software is Copyright FUTO and is used under the
+> [FUTO Source First License 1.1](LICENSE.md) (non-commercial use only). This fork has been modified –
+> see [FORK.md](FORK.md) for exactly what changed.
+
+Private, offline speech-to-text for Android: no network permission, no telemetry, no in-app billing,
+update checker or crash reporting, and model files are chosen from device storage instead of being
+downloaded by the app. A link to support FUTO (opens in your browser) is kept in the app.
+
+---
+
+## Original README (FUTO)
+
 # FUTO Voice Input
 
 FUTO Voice Input is an application that lets you do speech-to-text on Android, integrating with third party keyboards or apps that use the generic speech-to-text APIs.
@@ -21,7 +36,7 @@ Currently this does not support the SpeechRecognizer API, which few apps seem to
 ## Keyboard support
 
 Keyboard support is touched on in the Help section of the app. In short, the following keyboards are supported:
-* [**FUTO Keyboard**](https://keyboard.futo.org/) has FUTO Voice Input built-in; if you want to force it to use the external app you have to disable built-in voice input in its settings
+* [**FUTO Keyboard**](https://keyboard.futo.org/) which also has Whisper model support built-in; if you want to force it to use the external app you have to disable built-in voice input in its settings
 * [**HeliBoard**](https://github.com/Helium314/HeliBoard)
 * [**FlorisBoard**](https://github.com/florisboard/florisboard) supports it on newer releases
 * [**AnySoftKeyboard**](https://github.com/AnySoftKeyboard/AnySoftKeyboard)
@@ -30,7 +45,7 @@ Keyboard support is touched on in the Help section of the app. In short, the fol
 
 If you're okay with using proprietary keyboards, the following are supported:
 * **Grammarly Keyboard**, which uses the IME
-* **Microsoft SwiftKey**, which uses the implicit intent
+* **Microsoft SwiftKey**, however users have reported issues where text would sometimes not get inserted
 
 Incompatible keyboards:
 * **Gboard** - hardcoded to use Google's voice input, does not support third-party options
@@ -39,9 +54,13 @@ Incompatible keyboards:
 * **Simple Keyboard** by Simple Mobile Tools - [no voice button](https://github.com/SimpleMobileTools/Simple-Keyboard/issues/201)
 * **TypeWise** - no voice button [but suggestion filed in 2019](https://suggestions.typewise.app/suggestions/65517/voice-to-text-dictation)
 
+## Model  support
+
+Whisper, Parakeet, asr4all are currently supported, with more coming.
+
 ## Language support
 
-FUTO Voice Input is currently based on the OpenAI Whisper model, and could theoretically support all of the languages that OpenAI Whisper supports. However, in practice, the smaller models tend to not perform too good with languages that had fewer training hours. To avoid presenting something worse than nothing, only languages with more than 1,000 training hours are included as options in the UI:
+For multilingual input we use OpenAI Whisper model, and could theoretically support all of the languages that OpenAI Whisper supports. However, in practice, the smaller models tend to not perform too good with languages that had fewer training hours. To avoid presenting something worse than nothing, only languages with more than 1,000 training hours are included as options in the UI:
 * English
 * Chinese (currently has some weird behavior between traditional/simplified)
 * German

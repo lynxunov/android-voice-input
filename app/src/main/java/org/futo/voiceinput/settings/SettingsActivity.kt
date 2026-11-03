@@ -19,17 +19,13 @@ import kotlinx.coroutines.launch
 import org.futo.voiceinput.R
 import org.futo.voiceinput.theme.UixThemeAuto
 
-// BillingManager removed — no payments in this fork.
-// scheduleUpdateCheckingJob removed — no update checker in this fork.
-
 class SettingsActivity : ComponentActivity() {
-
     private fun updateContent() {
         setContent {
-            UixThemeAuto {
+            UixThemeAuto(false) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = MaterialTheme.colorScheme.surfaceContainer
                 ) {
                     SetupOrMain()
                 }
@@ -41,6 +37,7 @@ class SettingsActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {
             viewModel.onResume()
         }
+
 
     private val voiceIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -58,8 +55,9 @@ class SettingsActivity : ComponentActivity() {
                             result[0]
                         }
                     }
+
                     RESULT_CANCELED -> getString(R.string.intent_was_cancelled)
-                    else            -> getString(R.string.unknown_intent_result)
+                    else -> getString(R.string.unknown_intent_result)
                 }
             )
         }
@@ -73,7 +71,6 @@ class SettingsActivity : ComponentActivity() {
     }
 
     private lateinit var viewModel: SettingsViewModel
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -81,19 +78,23 @@ class SettingsActivity : ComponentActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.uiState.collect { updateContent() }
+                viewModel.uiState.collect {
+                    updateContent()
+                }
             }
         }
-        // scheduleUpdateCheckingJob intentionally omitted
+
     }
 
     override fun onResume() {
         super.onResume()
+
         viewModel.onResume()
     }
 
     override fun onRestart() {
         super.onRestart()
+
         viewModel.onResume()
     }
 }
