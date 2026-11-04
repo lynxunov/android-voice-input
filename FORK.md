@@ -58,13 +58,22 @@ All call sites (unpaid notices, update checks, billing, dev settings, "what's ne
 - `strings-lynx.xml`: strings for the Model Manager (separate file to keep `strings.xml` merge-clean).
 
 **Small edits to upstream files**
-- `Util.kt`: `startModelDownloadActivity` opens the Model Manager; `withSafStorage` in
+- `Util.kt`: `startModelDownloadActivity` opens the Model Manager instead of upstream's downloader;
+  `loadRecognizerSettings()` resolves every model through `withSafStorage` right after upstream's own
+  `MODEL_OPTIONS` resolution, so every screen, the recognizer and the IME see the same SAF-backed models; `withSafStorage` in
   `loadRecognizerSettings`; removed the legacy-model migration helper.
-- `shared/.../Models.kt`: asr4all-m is a normal selectable model instead of a bundled asset
-  (`DEFAULT_ENGLISH_MODEL_IDX` adjusted accordingly).
+- `shared/.../Models.kt`: asr4all-m is a `ModelDownloadable` with our checksum instead of a
+  `ModelBuiltInAsset` (no model is bundled in this fork). Everything else (`ALL_MODELS`, `MODELS_BY_ID`,
+  `lookupModel`, the per-language `MODEL_OPTIONS` system) is upstream's.
 - `shared/.../AudioRecognizer.kt`: `openPermissionSettings` opens this app instead of an activity
   that only exists inside FUTO Keyboard.
-- `settings/pages/Models.kt`: permanent link to the Model Manager; the subtitle only lists models that have a file.
+- `settings/pages/Models.kt`: taken from upstream as-is (its per-language model pickers), plus one added
+  row linking to the Model Manager. The "Model" subtitle on the Home screen (same-named function in this
+  file) only lists models that actually have a file.
+- `models/ModelPickerActivity.kt`: `selectIfCurrentIsMissing` rewritten against upstream's `MODEL_OPTIONS`
+  string-set format (`"lang:modelId"` / `"multi:modelId"`) instead of the old fixed-index lists; model
+  groupings for the picker UI now come from `ALL_MODELS` (upstream removed the old `ENGLISH_MODELS` /
+  `MULTILINGUAL_MODELS` lists).
 - `strings.xml` (English): app name and in-text product name -> "Lynx Voice Input", streaming tier "mid (default)",
   "Model file required" (was "download required"), feedback text points to this fork. `shared/.../strings-voiceinput.xml`:
   "(Default)" removed from the asr4all M-56 name (it only meant "bundled").
@@ -92,3 +101,8 @@ git submodule update --init --recursive
   AGP 9 / Gradle 9 toolchain) and re-applied the fork patchset on top.
 - **1.3.7-lynx (32)** – First fork build: single flavor, new application id, no `INTERNET`, payments/updater/ACRA/
   downloader removed, file-picker Model Manager.
+
+- **unreleased** – Merged upstream's model-options rewrite (per-language model selection replacing fixed
+  English/multilingual indices; `MODEL_OPTIONS`, `ALL_MODELS`, `lookupModel`, migration from the old
+  settings). Re-applied on top: SAF model resolution, the Model Manager nav entry and its model groupings,
+  `startModelDownloadActivity`. No behavior change intended beyond upstream's own new per-language picker UI.

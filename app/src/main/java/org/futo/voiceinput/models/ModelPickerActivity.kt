@@ -46,15 +46,15 @@ import kotlinx.coroutines.withContext
 import org.futo.voiceinput.LynxVoiceInputApplication
 import org.futo.voiceinput.R
 import org.futo.voiceinput.openURI
-import org.futo.voiceinput.settings.ENGLISH_MODEL_INDEX
-import org.futo.voiceinput.settings.MULTILINGUAL_MODEL_INDEX
+import org.futo.voiceinput.settings.MODEL_OPTIONS
 import org.futo.voiceinput.settings.getSetting
 import org.futo.voiceinput.settings.setSetting
-import org.futo.voiceinput.shared.ENGLISH_MODELS
-import org.futo.voiceinput.shared.MULTILINGUAL_MODELS
+import org.futo.voiceinput.shared.ALL_MODELS
+import org.futo.voiceinput.shared.types.Language
 import org.futo.voiceinput.shared.ggml.InvalidModelException
 import org.futo.voiceinput.shared.types.ModelDownloadable
 import org.futo.voiceinput.shared.types.ModelLoader
+import org.futo.voiceinput.shared.types.toWhisperString
 import org.futo.voiceinput.theme.UixThemeAuto
 import java.security.MessageDigest
 
@@ -131,20 +131,27 @@ private suspend fun testLoad(context: Context, model: ModelLoader): String {
 }
 
 /**
- * Saves the user a second trip into "Model options": if the model that is currently selected has no
- * file but the one just picked could be used instead, select the picked one.
+ * Saves the user a second trip into "Model options": for every slot (multilingual, or a language that
+ * has its own override) that currently points at a model with no file, point it at the one just picked
+ * instead – but only if the picked model actually supports that slot.
  */
 private suspend fun Context.selectIfCurrentIsMissing(picked: ModelLoader) {
-    val pickedKey = picked.key(this)
+    val options = getSetting(MODEL_OPTIONS).toMutableSet()
+    var changed = false
 
-    ENGLISH_MODELS.indexOfFirst { it.key(this) == pickedKey }.takeIf { it >= 0 }?.let { idx ->
-        val current = ENGLISH_MODELS.getOrNull(getSetting(ENGLISH_MODEL_INDEX))
-        if (current == null || !current.withSafStorage(this).exists(this)) setSetting(ENGLISH_MODEL_INDEX, idx)
-    }
-    MULTILINGUAL_MODELS.indexOfFirst { it.key(this) == pickedKey }.takeIf { it >= 0 }?.let { idx ->
-        val current = MULTILINGUAL_MODELS.getOrNull(getSetting(MULTILINGUAL_MODEL_INDEX))
-        if (current == null || !current.withSafStorage(this).exists(this)) setSetting(MULTILINGUAL_MODEL_INDEX, idx)
-    }
+    val updated = options.map { entry ->
+        val (prefix, modelId) = entry.split(':', limit = 2).let { it[0] to it.getOrElse(1) { "" } }
+        val currentModel = modelId.takeIf { it.isNotEmpty() }?.let { org.futo.voiceinput.shared.lookupModel(it) }
+        val currentIsUsable = currentModel != null && currentModel.withSafStorage(this).exists(this)
+        val pickedFitsSlot = prefix == "multi" || picked.caps.supportedLanguages.any { it.toWhisperString() == prefix }
+
+        if (!currentIsUsable && pickedFitsSlot && modelId != picked.id) {
+            changed = true
+            "$prefix:${picked.id}"
+        } else entry
+    }.toMutableSet()
+
+    if (changed) setSetting(MODEL_OPTIONS, updated)
 }
 
 @Composable
@@ -157,9 +164,11 @@ private fun ModelPickerScreen() {
     val verify = remember { mutableStateMapOf<String, String>() }
     val tests = remember { mutableStateMapOf<String, String>() }
 
-    // The same model can be listed for both English and multilingual use; show it once.
-    val english = ENGLISH_MODELS
-    val multilingual = MULTILINGUAL_MODELS.filter { m -> english.none { it.key(context) == m.key(context) } }
+    // Mirrors the grouping in settings/pages/Models.kt (upstream no longer has separate fixed lists).
+    val english = ALL_MODELS.filter { it.caps.supportedLanguages == setOf(Language.English) }
+        .sortedBy { it.caps.paramCount }
+    val multilingual = ALL_MODELS.filter { it.caps.supportedLanguages.size > 1 }
+        .sortedBy { it.caps.paramCount }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         val model = pending.value

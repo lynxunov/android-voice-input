@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -112,7 +111,7 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(24.dp))
         ScreenTitle(stringResource(R.string.futo_voice_input_settings))
         Text(
-            "${BuildConfig.VERSION_NAME}",
+            BuildConfig.VERSION_NAME,
             style = Typography.Small,
             modifier = Modifier
                 .fillMaxWidth()
@@ -126,7 +125,7 @@ fun HomeScreen(
         SettingsSeparator(stringResource(R.string.options))
         NavigationItem(
             title = stringResource(R.string.languages),
-            subtitle = multilingualSubtitle,
+            subtitle = null,
             style = NavigationItemStyle.Misc,
             navigate = { navController.navigate("languages") },
             icon = painterResource(R.drawable.globe)

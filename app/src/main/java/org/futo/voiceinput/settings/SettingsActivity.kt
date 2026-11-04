@@ -17,6 +17,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 import org.futo.voiceinput.R
+import org.futo.voiceinput.performMigrationsIfNecessary
 import org.futo.voiceinput.theme.UixThemeAuto
 
 class SettingsActivity : ComponentActivity() {
@@ -73,6 +74,8 @@ class SettingsActivity : ComponentActivity() {
     private lateinit var viewModel: SettingsViewModel
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        performMigrationsIfNecessary()
 
         viewModel = viewModels<SettingsViewModel>().value
 
