@@ -143,9 +143,10 @@ private suspend fun Context.selectIfCurrentIsMissing(picked: ModelLoader) {
         val (prefix, modelId) = entry.split(':', limit = 2).let { it[0] to it.getOrElse(1) { "" } }
         val currentModel = modelId.takeIf { it.isNotEmpty() }?.let { org.futo.voiceinput.shared.lookupModel(it) }
         val currentIsUsable = currentModel != null && currentModel.withSafStorage(this).exists(this)
-        val pickedFitsSlot = prefix == "multi" || picked.caps.supportedLanguages.any { it.toWhisperString() == prefix }
+        val pickedFitsSlot = if (prefix == "multi") picked.caps.supportedLanguages.size > 1 else picked.caps.supportedLanguages.any { it.toWhisperString() == prefix }
 
-        if (!currentIsUsable && pickedFitsSlot && modelId != picked.id) {
+        // empty modelId = deliberate "use the multilingual model"; never overwrite it
+        if (modelId.isNotEmpty() && !currentIsUsable && pickedFitsSlot && modelId != picked.id) {
             changed = true
             "$prefix:${picked.id}"
         } else entry

@@ -43,6 +43,7 @@ import org.futo.voiceinput.shared.RecognizerViewSettings
 import org.futo.voiceinput.shared.RecordingSettings
 import org.futo.voiceinput.shared.lookupModel
 import org.futo.voiceinput.shared.lookupModelLegacy
+import org.futo.voiceinput.shared.ALL_MODELS
 import org.futo.voiceinput.shared.types.Language
 import org.futo.voiceinput.shared.types.LegacyId
 import org.futo.voiceinput.shared.types.ModelLoader
@@ -302,8 +303,8 @@ fun Context.loadRecognizerSettings(inlinePartialResult: Boolean = false): Recogn
 
     // Fork change: resolve every model through SAF storage (picked file, or a private-copy fallback)
     // instead of upstream's app-private download folder.
-    val modelOptions = modelOptions.map { (lang, model) -> lang to model.withSafStorage(this) }
-    val relevantModels = modelOptions.filter { it.first in languages || it.first == null }.toMutableList()
+    val safModelOptions = modelOptions.map { (lang, model) -> lang to model.withSafStorage(this) }
+    val relevantModels = safModelOptions.filter { it.first in languages || it.first == null }.toMutableList()
 
     // means each language has an override and we need to remove the multi option
     if(relevantModels.size > languages.size) {
@@ -314,6 +315,9 @@ fun Context.loadRecognizerSettings(inlinePartialResult: Boolean = false): Recogn
 
     if(relevantModels.size == 0) {
         Log.e("SettingsUtils", "Relevant models are empty!! options=${modelOptions}, languages=${languages} optionsRaw=${getSetting(MODEL_OPTIONS)}")
+        // Fork: never crash; fall back to any configured model, else the first known one (shows "pick a file").
+        val fallback = safModelOptions.firstOrNull()?.second ?: ALL_MODELS.first().withSafStorage(this)
+        relevantModels.add(null to fallback)
     }
     val primaryModel = relevantModels.find { it.first == null }?.second ?: relevantModels[0].second
     if(relevantModels.size > 1) {

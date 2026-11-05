@@ -110,8 +110,9 @@ class AudioRecognizer(
     private val useVAD = settings.recordingConfiguration.useVADAutoStop
     private var inhibitVAD = false
 
-    private val stopSignal = CompletableDeferred<Unit>()
-    private val audioChannel = Channel<FloatArray>(Channel.UNLIMITED)
+    // Fork: per-session (recreated in startRecording) so a reused recognizer can record again
+    private var stopSignal = CompletableDeferred<Unit>()
+    private var audioChannel = Channel<FloatArray>(Channel.UNLIMITED)
     //private var floatSamples: FloatBuffer = FloatBuffer.allocate(16000 * 30)
     private var recorderJob: Job? = null
     private var modelJob: Job? = null
@@ -495,6 +496,9 @@ class AudioRecognizer(
     }
 
     private fun startRecording() {
+        stopSignal = CompletableDeferred()
+        audioChannel.close()
+        audioChannel = Channel(Channel.UNLIMITED)
         val device = try {
             createRecorderAndJob(settings.recordingConfiguration.preferBluetoothMic)
         } catch (e: SecurityException) {

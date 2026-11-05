@@ -332,6 +332,11 @@ class VoiceInputMethodService : InputMethodService(), LifecycleOwner, ViewModelS
             if(info.initialSelStart != info.initialSelEnd && (info.initialSelStart != -1) && (info.initialSelEnd > 0)) {
                 ic.setSelection(info.initialSelEnd, info.initialSelEnd)
             }
+            // Fork: reset per-session text state so nothing leaks from the previous field/session
+            textComposed = ""
+            pendingPreText = ""
+            pendingPostText = ""
+            composingStartPos = -100
             if(info.initialSelStart != -1) composingStartPos = info.initialSelStart
 
             txtBefore = ic.getTextBeforeCursor(1, 0)?.toString()
@@ -383,7 +388,7 @@ class VoiceInputMethodService : InputMethodService(), LifecycleOwner, ViewModelS
         )
 
         // User selected a word. Try to recover by some chance
-        if(newSelStart != newSelEnd && composingStartPos > 0) {
+        if(newSelStart != newSelEnd && composingStartPos >= 0) {
             currentInputConnection?.let {
                 it.setSelection(composingStartPos + textComposed.length, composingStartPos + textComposed.length)
                 if(it.getTextBeforeCursor(textComposed.length, 0) == textComposed) {
@@ -395,6 +400,7 @@ class VoiceInputMethodService : InputMethodService(), LifecycleOwner, ViewModelS
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
+        super.onFinishInputView(finishingInput)
         println("Finish input view")
         recognizer?.reset()
 

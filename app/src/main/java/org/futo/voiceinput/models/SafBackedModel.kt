@@ -37,6 +37,8 @@ class SafBackedModel internal constructor(
     private val inner: ModelLoader,
     private val uri: Uri?,
 ) : ModelLoader {
+    override val id: String get() = inner.id
+    override val legacyId get() = inner.legacyId
     override val name: Int get() = inner.name
     override val caps: ModelCapabilities get() = inner.caps
 

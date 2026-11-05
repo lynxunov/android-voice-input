@@ -106,3 +106,11 @@ git submodule update --init --recursive
   English/multilingual indices; `MODEL_OPTIONS`, `ALL_MODELS`, `lookupModel`, migration from the old
   settings). Re-applied on top: SAF model resolution, the Model Manager nav entry and its model groupings,
   `startModelDownloadActivity`. No behavior change intended beyond upstream's own new per-language picker UI.
+
+
+## 1.4.3-lynx (unreleased) – build fix + review fixes
+- Fix: `SafBackedModel` implements upstream's new abstract `id`/`legacyId` (build error).
+- Fix: `Util.loadRecognizerSettings` – removed same-scope `modelOptions` redeclaration; empty relevant-model list no longer crashes (falls back to first known model → "pick a file").
+- Fix: `AudioRecognizer` recreates stop signal + audio channel per recording (reused recognizer ended 2nd session immediately).
+- Fix: IME resets composing/pending text per input session, calls `super.onFinishInputView`, recovery check `>= 0`.
+- Fix: Model Manager auto-assign no longer overwrites intentional empty (`lang:`) slots; English-only models no longer fill the multi slot.
