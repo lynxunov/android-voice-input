@@ -30,7 +30,6 @@ import org.futo.voiceinput.openURI
 import org.futo.voiceinput.theme.Typography
 import org.futo.voiceinput.BuildConfig
 import org.futo.voiceinput.settings.ConditionalModelUpdate
-import org.futo.voiceinput.settings.ENABLE_MULTILINGUAL
 import org.futo.voiceinput.settings.KeyboardVoiceInputConfigState
 import org.futo.voiceinput.settings.NavigationItem
 import org.futo.voiceinput.settings.NavigationItemStyle
@@ -97,13 +96,6 @@ fun HomeScreen(
     settingsViewModel: SettingsViewModel = viewModel(),
     navController: NavHostController = rememberNavController()
 ) {
-    val isMultilingual = useDataStore(ENABLE_MULTILINGUAL)
-    val multilingualSubtitle = if (isMultilingual.value) {
-        stringResource(R.string.multilingual_enabled_english_will_be_slower)
-    } else {
-        null
-    }
-
     val defaultIME = useDefaultIME(0)
     val isSet = useIsConfiguredInFUTOKeyboard(defaultIME.value, 0, false)
 

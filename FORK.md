@@ -114,3 +114,4 @@ git submodule update --init --recursive
 - Fix: `AudioRecognizer` recreates stop signal + audio channel per recording (reused recognizer ended 2nd session immediately).
 - Fix: IME resets composing/pending text per input session, calls `super.onFinishInputView`, recovery check `>= 0`.
 - Fix: Model Manager auto-assign no longer overwrites intentional empty (`lang:`) slots; English-only models no longer fill the multi slot.
+- Fix: `settings/pages/Models.kt` had a stray `import` above `package` (syntax error → cascading unresolved `ModelsScreen`/`modelsSubtitle`); `Home.kt` dropped unused `ENABLE_MULTILINGUAL` (removed upstream in v2).

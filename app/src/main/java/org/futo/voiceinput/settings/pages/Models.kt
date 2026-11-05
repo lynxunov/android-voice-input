@@ -1,6 +1,6 @@
-import android.content.Intent
 package org.futo.voiceinput.settings.pages
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
