@@ -145,8 +145,11 @@ private suspend fun Context.selectIfCurrentIsMissing(picked: ModelLoader) {
         val currentIsUsable = currentModel != null && currentModel.withSafStorage(this).exists(this)
         val pickedFitsSlot = if (prefix == "multi") picked.caps.supportedLanguages.size > 1 else picked.caps.supportedLanguages.any { it.toWhisperString() == prefix }
 
-        // empty modelId = deliberate "use the multilingual model"; never overwrite it
-        if (modelId.isNotEmpty() && !currentIsUsable && pickedFitsSlot && modelId != picked.id) {
+        // Empty modelId = "use the multilingual model". A language-specific model that was just picked
+        // (e.g. English-only) takes over its own language's slot in that case; a multilingual pick must not.
+        val pickedIsLanguageSpecific = picked.caps.supportedLanguages.size == 1
+        val slotIsEmptyOverride = modelId.isEmpty() && prefix != "multi" && pickedIsLanguageSpecific
+        if ((modelId.isNotEmpty() || slotIsEmptyOverride) && !currentIsUsable && pickedFitsSlot && modelId != picked.id) {
             changed = true
             "$prefix:${picked.id}"
         } else entry

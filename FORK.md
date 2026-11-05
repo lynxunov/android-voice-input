@@ -115,3 +115,4 @@ git submodule update --init --recursive
 - Fix: IME resets composing/pending text per input session, calls `super.onFinishInputView`, recovery check `>= 0`.
 - Fix: Model Manager auto-assign no longer overwrites intentional empty (`lang:`) slots; English-only models no longer fill the multi slot.
 - Fix: `settings/pages/Models.kt` had a stray `import` above `package` (syntax error → cascading unresolved `ModelsScreen`/`modelsSubtitle`); `Home.kt` dropped unused `ENABLE_MULTILINGUAL` (removed upstream in v2).
+- Fix: Model Manager auto-select now also fills the English slot when an English-only model is picked (empty `en:` = "use multilingual" is replaced; multilingual picks still never overwrite empty overrides).
