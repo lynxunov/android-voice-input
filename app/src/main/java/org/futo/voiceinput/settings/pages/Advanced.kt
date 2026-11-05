@@ -1,6 +1,19 @@
 package org.futo.voiceinput.settings.pages
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import org.futo.voiceinput.settings.IS_VAD_ENABLED
+import org.futo.voiceinput.settings.PAUSE_GAP_MS
+import org.futo.voiceinput.settings.useDataStore
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -67,6 +80,21 @@ fun AdvancedScreen(
             PER_LANGUAGE_MODELS_IN_MIXED,
             subtitle = stringResource(R.string.lynx_per_language_models_in_mixed_subtitle)
         )
+
+        // Pause length that splits speech (and is cut from the recording). Inactive while auto-stop is on.
+        val autoStop = useDataStore(IS_VAD_ENABLED.key, IS_VAD_ENABLED.default).value
+        val gap = useDataStore(PAUSE_GAP_MS.key, PAUSE_GAP_MS.default)
+        var sliderValue by remember(gap.value) { mutableFloatStateOf(gap.value.toFloat()) }
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Text(stringResource(R.string.lynx_pause_length, sliderValue.toInt()))
+            Slider(
+                value = sliderValue,
+                onValueChange = { sliderValue = (it / 50f).toInt() * 50f },
+                onValueChangeFinished = { gap.setValue(sliderValue.toInt()) },
+                valueRange = 200f..1500f,
+                enabled = !autoStop,
+            )
+        }
 
         NavigationItem(
             title = stringResource(R.string.open_input_method_settings),

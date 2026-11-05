@@ -562,6 +562,10 @@ class AudioRecognizer(
             listener.languageDetected(language)
         }
 
+        override fun progress(part: Int, total: Int) {
+            listener.decodingProgress(part, total)
+        }
+
         override fun partialResult(string: String) {
             if(isBlankResult(string)) return
             listener.partialResult(string)

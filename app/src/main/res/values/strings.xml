@@ -281,4 +281,9 @@
     <string name="lynx_multi_language_in_recording_subtitle">Splits speech at pauses and detects the language of each part. Uses one multilingual model, so languages can change mid-recording. Needs at least two enabled languages.</string>
     <string name="lynx_per_language_models_in_mixed">Per-language models in mixed recordings</string>
     <string name="lynx_per_language_models_in_mixed_subtitle">Slower: switches to a language-specific model for each part. Off = one multilingual model for mixed recordings (single-language recordings still use per-language models).</string>
+    <string name="lynx_already_assigned">Not imported: this file is already used for “%1$s”.</string>
+    <string name="lynx_file_is_other_model">Not imported: this is the file for “%1$s”, not for this model. Choose it there.</string>
+    <string name="lynx_pause_cut">Cut long pauses</string>
+    <string name="lynx_pause_cut_subtitle">Removes long silences before processing so they cost no time. Off while “Auto-stop on silence” is on.</string>
+    <string name="lynx_pause_length">Pause length that splits speech: %1$d ms</string>
 </resources>

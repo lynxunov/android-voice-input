@@ -36,6 +36,10 @@ data class DecodingConfiguration(
     val segmentByPauses: Boolean = false,
     /** Fork: in mixed recordings, still switch to per-language models (slower). Default: one multilingual model. */
     val perLanguageModelsInMixed: Boolean = false,
+    /** Fork: silence length (ms) that splits chunks. */
+    val pauseGapMs: Int = 350,
+    /** Fork: single-language recordings: drop long silences before processing. */
+    val cutLongPauses: Boolean = false,
 )
 
 private fun<T> MutableSet<T>.flatMapInPlace(transformator: (T) -> Iterable<T>) {
@@ -216,7 +220,16 @@ class MultiModelRunner(
                 caps.supportsLanguageDetection &&
                 !caps.supportsStreaming
 
-        val result = if (!segmented) classic(sampleFlow) else {
+        val result = if (!segmented) {
+            if (decodingConfiguration.cutLongPauses && !caps.supportsStreaming) {
+                // Silence costs processing time but carries no words: keep only speech with short pauses.
+                val parts = sampleFlow.segmentByPauses(decodingConfiguration.pauseGapMs).toList()
+                val trimmed = FloatArray(parts.sumOf { it.size })
+                var at = 0
+                for (part in parts) { part.copyInto(trimmed, at); at += part.size }
+                classic(if (trimmed.isEmpty()) emptyFlow() else flowOf(trimmed))
+            } else classic(sampleFlow)
+        } else {
             // Fork: pause-segmented, per-chunk language detection.
             // The first chunk is held back until a second one exists: a recording with a single chunk
             // takes the classic path (per-language model if configured), a longer one stays on the
@@ -257,14 +270,27 @@ class MultiModelRunner(
                 if (text.isNotBlank()) texts.add(text.trim())
             }
 
-            sampleFlow.segmentByPauses().collect { chunk ->
+            // Producer cuts chunks as audio arrives; consumer transcribes them in order. After the user
+            // stops, the producer finishes almost instantly, so the total is known for the progress text.
+            val chunks = kotlinx.coroutines.channels.Channel<FloatArray>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+            var produced = 0
+            val producer = launch {
+                try {
+                    sampleFlow.segmentByPauses(decodingConfiguration.pauseGapMs).collect { produced++; chunks.send(it) }
+                } finally { chunks.close() }
+            }
+            for (chunk in chunks) {
                 count++
                 when (count) {
                     1 -> pending = chunk
-                    2 -> { runChunk(pending!!); pending = null; runChunk(chunk) }
-                    else -> runChunk(chunk)
+                    2 -> {
+                        callback.progress(1, produced); runChunk(pending!!); pending = null
+                        callback.progress(2, produced); runChunk(chunk)
+                    }
+                    else -> { callback.progress(count, produced); runChunk(chunk) }
                 }
             }
+            producer.join()
 
             when (count) {
                 0 -> classic(emptyFlow())

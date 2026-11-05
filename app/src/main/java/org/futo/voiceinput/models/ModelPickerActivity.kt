@@ -103,10 +103,23 @@ private fun sha256Hex(context: Context, uri: Uri): String? = try {
     }
 } catch (e: Exception) { null }
 
+/** Another model that currently points at [uri] (several models must never share one file permission). */
+private fun Context.otherModelUsing(uri: Uri, model: ModelLoader): ModelLoader? {
+    val id = model.storageId(this)
+    return ALL_MODELS.firstOrNull { it.storageId(this) != id && getModelUri(it) == uri }
+}
+
+/** Gives the permission back to Android, but only if no other model still needs that file. */
+private fun Context.releaseUriIfUnused(uri: Uri, except: ModelLoader) {
+    if (otherModelUsing(uri, except) != null) return
+    try { contentResolver.releasePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+    catch (_: Exception) { }
+}
+
 /** Compares the chosen file with the official checksum. Null if this model has no known checksum. */
-private fun verifyMessage(context: Context, model: ModelLoader): String? {
+private fun verifyMessage(context: Context, model: ModelLoader, known: String? = null): String? {
     val expected = (model as? ModelDownloadable)?.checksum ?: return null
-    val actual = context.getModelUri(model)?.let { sha256Hex(context, it) }
+    val actual = known ?: context.getModelUri(model)?.let { sha256Hex(context, it) }
     return when {
         actual == null -> context.getString(R.string.lynx_verify_failed)
         actual.equals(expected, ignoreCase = true) -> context.getString(R.string.lynx_verify_ok)
@@ -182,6 +195,31 @@ private fun ModelPickerScreen() {
         scope.launch(Dispatchers.IO) {
             val id = model.storageId(context)
             val previous = context.getModelUri(model)
+
+            // 1) The very same file is already in use for another model: do not import it twice.
+            context.otherModelUsing(uri, model)?.let { dup ->
+                notes[id] = context.getString(R.string.lynx_already_assigned, context.getString(dup.name))
+                withContext(Dispatchers.Main) { ModelPickerActivity.picksCompleted.intValue++ }
+                return@launch
+            }
+
+            // 2) Check what the file really is *before* storing anything. A known file of a different model is refused.
+            notes[id] = ""
+            verify[id] = context.getString(R.string.lynx_verify_running)
+            val hash = sha256Hex(context, uri)
+            val expectedHash = (model as? ModelDownloadable)?.checksum
+            val actualOwner = hash?.let { h ->
+                ALL_MODELS.firstOrNull { m ->
+                    m.storageId(context) != id && (m as? ModelDownloadable)?.checksum.equals(h, ignoreCase = true)
+                }
+            }
+            if (actualOwner != null && expectedHash?.equals(hash, ignoreCase = true) != true) {
+                verify.remove(id)
+                notes[id] = context.getString(R.string.lynx_file_is_other_model, context.getString(actualOwner.name))
+                withContext(Dispatchers.Main) { ModelPickerActivity.picksCompleted.intValue++ }
+                return@launch
+            }
+
             var permanent = true
             try {
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -189,13 +227,10 @@ private fun ModelPickerScreen() {
                 permanent = false
                 Log.w("ModelPicker", "Could not persist read permission: ${e.message}")
             }
-            if (previous != null && previous != uri) {
-                try { context.contentResolver.releasePersistableUriPermission(previous, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-                catch (_: Exception) { }
-            }
             SafBackedModel.deletePrivateCopy(context, id) // a different file => any old private copy is stale
             context.setModelUri(model, uri)
-            verify.remove(id); tests.remove(id)
+            if (previous != null && previous != uri) context.releaseUriIfUnused(previous, model)
+            tests.remove(id)
 
             val shown = context.displayName(uri)
             val expected = (model as? ModelDownloadable)?.let { listOf(it.ggmlFile) + it.backwardsCompatFiles }
@@ -209,10 +244,7 @@ private fun ModelPickerScreen() {
             withContext(Dispatchers.Main) { ModelPickerActivity.picksCompleted.intValue++ }
 
             // One automatic checksum check for a newly chosen file. Informational only: it never undoes the choice.
-            if (model is ModelDownloadable) {
-                verify[id] = context.getString(R.string.lynx_verify_running)
-                verify[id] = verifyMessage(context, model).orEmpty()
-            }
+            verify[id] = if (model is ModelDownloadable) verifyMessage(context, model, hash).orEmpty() else ""
         }
     }
 
@@ -292,7 +324,12 @@ private fun ModelRow(
                     )
                     TextButton(onClick = {
                         scope.launch(Dispatchers.IO) {
+                            // Deleting the copy also removes the model, so it is not left half-configured.
+                            val old = context.getModelUri(model)
+                            context.clearModelUri(model)
+                            if (old != null) context.releaseUriIfUnused(old, model)
                             SafBackedModel.deletePrivateCopy(context, id)
+                            notes.remove(id); verify.remove(id); tests.remove(id)
                             withContext(Dispatchers.Main) { ModelPickerActivity.picksCompleted.intValue++ }
                         }
                     }) { Text(stringResource(R.string.lynx_delete_copy)) }
@@ -308,10 +345,7 @@ private fun ModelRow(
                         scope.launch(Dispatchers.IO) {
                             val old = context.getModelUri(model)
                             context.clearModelUri(model)
-                            if (old != null) {
-                                try { context.contentResolver.releasePersistableUriPermission(old, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-                                catch (_: Exception) { }
-                            }
+                            if (old != null) context.releaseUriIfUnused(old, model)
                             SafBackedModel.deletePrivateCopy(context, id)
                             notes.remove(id); verify.remove(id); tests.remove(id)
                             withContext(Dispatchers.Main) { ModelPickerActivity.picksCompleted.intValue++ }

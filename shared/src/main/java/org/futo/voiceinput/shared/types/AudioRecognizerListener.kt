@@ -14,6 +14,9 @@ interface AudioRecognizerListener {
     fun decodingStatus(status: InferenceState)
     fun modelLoadingFailed()
 
+    /** Fork: chunk progress of a pause-segmented recording. */
+    fun decodingProgress(part: Int, total: Int) {}
+
     fun loading()
     fun needPermission(onResult: (Boolean) -> Unit)
 

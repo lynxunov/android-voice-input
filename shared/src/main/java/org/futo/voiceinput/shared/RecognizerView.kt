@@ -226,6 +226,12 @@ class RecognizerView(
             currentViewState.value = CurrentView.LoadingCircle
         }
 
+        override fun decodingProgress(part: Int, total: Int) {
+            if (total < 2) return
+            loadingCircleText.value = context.getString(R.string.lynx_progress_chunk, part, total)
+            currentViewState.value = CurrentView.LoadingCircle
+        }
+
         override fun loading() {
             loadingCircleText.value = context.getString(R.string.initializing)
             currentViewState.value = CurrentView.LoadingCircle

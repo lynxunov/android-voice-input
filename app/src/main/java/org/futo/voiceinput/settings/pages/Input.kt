@@ -12,6 +12,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import org.futo.voiceinput.R
+import org.futo.voiceinput.settings.CUT_LONG_PAUSES
 import org.futo.voiceinput.settings.ENABLE_ANIMATIONS
 import org.futo.voiceinput.settings.ENABLE_SOUND
 import org.futo.voiceinput.settings.IS_VAD_ENABLED
@@ -61,5 +62,13 @@ fun InputScreen(
 
         Tip(stringResource(R.string.stop_on_silence_info), TipKind.Info)
         SettingToggleDataStore(stringResource(R.string.stop_on_silence), IS_VAD_ENABLED)
+
+        val autoStop = useDataStore(IS_VAD_ENABLED.key, IS_VAD_ENABLED.default).value
+        SettingToggleDataStore(
+            stringResource(R.string.lynx_pause_cut),
+            CUT_LONG_PAUSES,
+            subtitle = stringResource(R.string.lynx_pause_cut_subtitle),
+            disabled = autoStop,
+        )
     }
 }

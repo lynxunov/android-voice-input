@@ -14,7 +14,7 @@ import kotlin.math.sqrt
  */
 private const val SAMPLE_RATE = 16000
 private const val FRAME = SAMPLE_RATE / 20            // 50 ms
-private const val GAP_FRAMES = 7                      // 350 ms of silence closes a chunk
+private const val DEFAULT_GAP_MS = 350                 // silence that closes a chunk
 private const val MIN_SPEECH_FRAMES = 16              // a chunk needs >= 0.8 s of speech, else it merges forward
 private const val TAIL_SAMPLES = SAMPLE_RATE / 10     // 100 ms of silence kept after speech
 private const val HEAD_SAMPLES = SAMPLE_RATE * 3 / 20 // 150 ms of silence kept before next chunk
@@ -45,8 +45,9 @@ private class FloatBuf {
     }
 }
 
-fun Flow<FloatArray>.segmentByPauses(): Flow<FloatArray> {
+fun Flow<FloatArray>.segmentByPauses(gapMs: Int = DEFAULT_GAP_MS): Flow<FloatArray> {
     val upstream = this
+    val gapFrames = max(2, gapMs / 50)
     return flow {
         val buf = FloatBuf()
         var scanned = 0
@@ -71,7 +72,7 @@ fun Flow<FloatArray>.segmentByPauses(): Flow<FloatArray> {
                     silentRun++
                 }
 
-                if (speechFrames >= MIN_SPEECH_FRAMES && silentRun >= GAP_FRAMES) {
+                if (speechFrames >= MIN_SPEECH_FRAMES && silentRun >= gapFrames) {
                     val cut = minOf(buf.size, lastSpeechEnd + TAIL_SAMPLES)
                     emit(buf.copy(0, cut))
                     emitted++

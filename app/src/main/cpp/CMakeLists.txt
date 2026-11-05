@@ -19,6 +19,9 @@ if(ANDROID_ABI STREQUAL "armeabi-v7a")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpu=neon-fp16 -mfloat-abi=softfp")
 endif()
 
+# Fork: always optimise the native engine. Debug APKs otherwise compile ggml at -O0, which is 20-50x slower.
+set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+
 add_subdirectory(transcribe.cpp)
 
 set(CMAKE_CXX_FLAGS "-O3 -Wall -Wextra -g3")

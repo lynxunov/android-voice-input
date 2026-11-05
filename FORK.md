@@ -123,3 +123,13 @@ git submodule update --init --recursive
 - Only for non-streaming models with language detection (Whisper); streaming models keep upstream behaviour.
 - Advanced Settings: "Multiple languages in one recording" (default on), "Per-language models in mixed recordings" (default off).
 - Limits: a single foreign word without pauses around it stays in the surrounding chunk's language. Not yet done: primary language pair, show detected languages (needs native change), dictionaries, pause/resume, spoken punctuation.
+
+## 1.5.1-lynx – speed (native Release), import fixes, pause options, progress
+- Perf (likely main cause of 20–50x slowness vs. upstream, unconfirmed until measured): `CMakeLists.txt` forces `CMAKE_BUILD_TYPE=Release` so the native engine (ggml) is optimised in debug APKs too (was -O0). First build after this change recompiles the native part (slow once).
+- Fix: importing a file that is already assigned to another model is refused; a file that is the official file of a *different* model is refused before anything is stored (hash checked first, reused for verify).
+- Fix: Remove / Replace / Delete copy only release the Android file permission when no other model uses the same file (removing a wrongly imported model no longer breaks the correct one).
+- Fix: "Delete copy" now also unassigns the model (same as Remove).
+- New: Input → "Cut long pauses" (default on; inactive while Auto-stop on silence is on): single-language recordings with non-streaming models are stripped of long silences before processing.
+- New: Advanced → pause length slider (200–1500 ms, default 350; inactive while Auto-stop is on). Mixed-language chunking uses it too.
+- New: "Processing part k of n" progress for chunked recordings (producer/consumer, total known right after stop).
+- Not yet: separate language-ID model, merging same-language chunks, parallel chunk transcription, show detected languages.

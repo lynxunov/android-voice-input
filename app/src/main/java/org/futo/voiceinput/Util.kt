@@ -21,6 +21,8 @@ import kotlinx.coroutines.runBlocking
 import org.futo.voiceinput.models.ModelPickerActivity
 import org.futo.voiceinput.models.withSafStorage
 import org.futo.voiceinput.settings.CURRENT_MIGRATION_LEVEL
+import org.futo.voiceinput.settings.CUT_LONG_PAUSES
+import org.futo.voiceinput.settings.PAUSE_GAP_MS
 import org.futo.voiceinput.settings.DISALLOW_SYMBOLS
 import org.futo.voiceinput.settings.ENABLE_30S_LIMIT
 import org.futo.voiceinput.settings.ENABLE_ANIMATIONS
@@ -359,6 +361,9 @@ fun Context.loadRecognizerSettings(inlinePartialResult: Boolean = false): Recogn
             tier = getSetting(STREAMING_TIER),
             segmentByPauses = getSetting(MULTI_LANGUAGE_IN_RECORDING),
             perLanguageModelsInMixed = getSetting(PER_LANGUAGE_MODELS_IN_MIXED),
+            // With "Auto-stop on silence" on, the defaults apply and the user's pause options are inactive.
+            pauseGapMs = if (getSetting(IS_VAD_ENABLED)) 350 else getSetting(PAUSE_GAP_MS),
+            cutLongPauses = getSetting(CUT_LONG_PAUSES) && !getSetting(IS_VAD_ENABLED),
         ),
         recordingConfiguration = RecordingSettings(
             preferBluetoothMic = false,
