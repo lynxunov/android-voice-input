@@ -19,8 +19,8 @@ android {
         applicationId "com.lynxunov.voiceinput"
         minSdk 24
         targetSdk 36
-        versionCode 36
-        versionName "1.4.2-lynx"
+        versionCode 37
+        versionName "1.5.0-lynx"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

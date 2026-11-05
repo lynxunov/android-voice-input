@@ -33,6 +33,8 @@ import org.futo.voiceinput.settings.LEGACY_USE_LANGUAGE_SPECIFIC_MODELS
 import org.futo.voiceinput.settings.MANUALLY_SELECT_LANGUAGE
 import org.futo.voiceinput.settings.MIGRATED_ENGLISH_MODEL
 import org.futo.voiceinput.settings.MODEL_OPTIONS
+import org.futo.voiceinput.settings.MULTI_LANGUAGE_IN_RECORDING
+import org.futo.voiceinput.settings.PER_LANGUAGE_MODELS_IN_MIXED
 import org.futo.voiceinput.settings.PERSONAL_DICTIONARY
 import org.futo.voiceinput.settings.STREAMING_TIER
 import org.futo.voiceinput.settings.VERBOSE_PROGRESS
@@ -355,6 +357,8 @@ fun Context.loadRecognizerSettings(inlinePartialResult: Boolean = false): Recogn
             languages = languages,
             suppressSymbols = getSetting(DISALLOW_SYMBOLS),
             tier = getSetting(STREAMING_TIER),
+            segmentByPauses = getSetting(MULTI_LANGUAGE_IN_RECORDING),
+            perLanguageModelsInMixed = getSetting(PER_LANGUAGE_MODELS_IN_MIXED),
         ),
         recordingConfiguration = RecordingSettings(
             preferBluetoothMic = false,

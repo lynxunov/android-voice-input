@@ -7,6 +7,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
@@ -30,6 +32,10 @@ data class DecodingConfiguration(
     val languages: Set<Language>,
     val suppressSymbols: Boolean,
     val tier: Int,
+    /** Fork: split the recording at pauses and detect the language per chunk (mixed-language dictation). */
+    val segmentByPauses: Boolean = false,
+    /** Fork: in mixed recordings, still switch to per-language models (slower). Default: one multilingual model. */
+    val perLanguageModelsInMixed: Boolean = false,
 )
 
 private fun<T> MutableSet<T>.flatMapInPlace(transformator: (T) -> Iterable<T>) {
@@ -171,10 +177,11 @@ class MultiModelRunner(
             decodingConfiguration.glossary
         )
 
-        val result = try {
+        // Upstream behaviour: one language for the whole recording; bail to a per-language model if needed.
+        suspend fun classic(flow: Flow<FloatArray>): String = try {
             callback.updateStatus(InferenceState.Encoding)
             primaryModel.infer(
-                sampleFlow = sampleFlow,
+                sampleFlow = flow,
                 prompt = glossary.compiledWords,
                 languages = allowedLanguages,
                 bailLanguages = bailLanguages,
@@ -190,7 +197,7 @@ class MultiModelRunner(
             val specificModelLoader = runConfiguration.languageSpecificModels[language]!!
             val specificModel = modelManager.obtainModel(specificModelLoader)
 
-            val remainder = sampleFlow.toList()
+            val remainder = flow.toList()
             specificModel.infer(
                 sampleFlow = (listOf(e.samples) + remainder).asFlow(),
                 prompt = glossary.compiledWords,
@@ -201,6 +208,69 @@ class MultiModelRunner(
                 },
                 tier = 3,//decodingConfiguration.tier,
             )
+        }
+
+        val caps = runConfiguration.primaryModel.caps
+        val segmented = decodingConfiguration.segmentByPauses &&
+                allowedLanguages.size > 1 &&
+                caps.supportsLanguageDetection &&
+                !caps.supportsStreaming
+
+        val result = if (!segmented) classic(sampleFlow) else {
+            // Fork: pause-segmented, per-chunk language detection.
+            // The first chunk is held back until a second one exists: a recording with a single chunk
+            // takes the classic path (per-language model if configured), a longer one stays on the
+            // multilingual model so no model has to be swapped mid-recording.
+            val mixedBail = if (decodingConfiguration.perLanguageModelsInMixed) bailLanguages else arrayOf()
+            val texts = mutableListOf<String>()
+            var pending: FloatArray? = null
+            var count = 0
+
+            suspend fun runChunk(chunk: FloatArray) {
+                val shown = { partial: String ->
+                    callback.partialResult(glossary.processResult((texts + partial).joinToString(" ")))
+                }
+                val text = try {
+                    callback.updateStatus(InferenceState.Encoding)
+                    primaryModel.infer(
+                        sampleFlow = flowOf(chunk),
+                        prompt = glossary.compiledWords,
+                        languages = allowedLanguages,
+                        bailLanguages = mixedBail,
+                        partialResultCallback = shown,
+                        tier = 3,
+                    )
+                } catch (e: BailLanguageException) {
+                    callback.updateStatus(InferenceState.SwitchingModel)
+                    val language = getLanguageFromWhisperString(e.language)
+                    val loader = runConfiguration.languageSpecificModels[language]
+                    if (loader == null) throw e
+                    modelManager.obtainModel(loader).infer(
+                        sampleFlow = flowOf(e.samples),
+                        prompt = glossary.compiledWords,
+                        languages = arrayOf(e.language),
+                        bailLanguages = arrayOf(),
+                        partialResultCallback = shown,
+                        tier = 3,
+                    )
+                }
+                if (text.isNotBlank()) texts.add(text.trim())
+            }
+
+            sampleFlow.segmentByPauses().collect { chunk ->
+                count++
+                when (count) {
+                    1 -> pending = chunk
+                    2 -> { runChunk(pending!!); pending = null; runChunk(chunk) }
+                    else -> runChunk(chunk)
+                }
+            }
+
+            when (count) {
+                0 -> classic(emptyFlow())
+                1 -> classic(flowOf(pending!!))
+                else -> texts.joinToString(" ")
+            }
         }
 
         return@coroutineScope glossary.processResult(result)

@@ -116,6 +116,10 @@ val LEGACY_USE_LANGUAGE_SPECIFIC_MODELS = SettingsKey(booleanPreferencesKey("USE
 val ALLOW_UNDERTRAINED_LANGUAGES = SettingsKey(booleanPreferencesKey("allow_undertrained_languages"), false)
 val MANUALLY_SELECT_LANGUAGE = SettingsKey(booleanPreferencesKey("manually_select_language"), false)
 
+// Fork: mixed-language dictation (split at pauses, detect language per chunk)
+val MULTI_LANGUAGE_IN_RECORDING = SettingsKey(booleanPreferencesKey("lynx_multi_language_in_recording"), true)
+val PER_LANGUAGE_MODELS_IN_MIXED = SettingsKey(booleanPreferencesKey("lynx_per_language_models_in_mixed"), false)
+
 val PERSONAL_DICTIONARY = SettingsKey(stringPreferencesKey("personal_dict"), "")
 
 val THEME_KEY = SettingsKey(

@@ -277,4 +277,8 @@
     <string name="help_futo_keyboard_title">FUTO Keyboard setup</string>
     <string name="help_futo_keyboard_body">Make sure you toggle on \"Disable built-in voice input\" in FUTO Keyboard\'s settings, otherwise the keyboard won\'t trigger this app and none of the options here will change anything.\n\n\You can check for the big O in the background of voice input to tell whether this app is being used or not.</string>
 
+    <string name="lynx_multi_language_in_recording">Multiple languages in one recording</string>
+    <string name="lynx_multi_language_in_recording_subtitle">Splits speech at pauses and detects the language of each part. Uses one multilingual model, so languages can change mid-recording. Needs at least two enabled languages.</string>
+    <string name="lynx_per_language_models_in_mixed">Per-language models in mixed recordings</string>
+    <string name="lynx_per_language_models_in_mixed_subtitle">Slower: switches to a language-specific model for each part. Off = one multilingual model for mixed recordings (single-language recordings still use per-language models).</string>
 </resources>

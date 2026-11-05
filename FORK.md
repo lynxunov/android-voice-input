@@ -116,3 +116,10 @@ git submodule update --init --recursive
 - Fix: Model Manager auto-assign no longer overwrites intentional empty (`lang:`) slots; English-only models no longer fill the multi slot.
 - Fix: `settings/pages/Models.kt` had a stray `import` above `package` (syntax error → cascading unresolved `ModelsScreen`/`modelsSubtitle`); `Home.kt` dropped unused `ENABLE_MULTILINGUAL` (removed upstream in v2).
 - Fix: Model Manager auto-select now also fills the English slot when an English-only model is picked (empty `en:` = "use multilingual" is replaced; multilingual picks still never overwrite empty overrides).
+
+## 1.5.0-lynx – mixed-language dictation, phase 1
+- New: `shared/.../whisper/PauseSegmenter.kt` – energy-based pause detector (350 ms gap, ≥0.8 s speech per chunk, 25 s max; adaptive level).
+- New: `MultiModelRunner` segmented path: each chunk is language-detected (among enabled languages) and transcribed on the multilingual model; no whole-recording re-run, no model swap. Short chunks also make the encoder cheaper (engine scales audio context with length). A recording with only one chunk uses the classic path (per-language model if configured).
+- Only for non-streaming models with language detection (Whisper); streaming models keep upstream behaviour.
+- Advanced Settings: "Multiple languages in one recording" (default on), "Per-language models in mixed recordings" (default off).
+- Limits: a single foreign word without pauses around it stays in the surrounding chunk's language. Not yet done: primary language pair, show detected languages (needs native change), dictionaries, pause/resume, spoken punctuation.

@@ -12,8 +12,10 @@ import org.futo.voiceinput.settings.ALLOW_UNDERTRAINED_LANGUAGES
 import org.futo.voiceinput.settings.BEAM_SEARCH
 import org.futo.voiceinput.settings.DISALLOW_SYMBOLS
 import org.futo.voiceinput.settings.ENABLE_30S_LIMIT
+import org.futo.voiceinput.settings.MULTI_LANGUAGE_IN_RECORDING
 import org.futo.voiceinput.settings.NavigationItem
 import org.futo.voiceinput.settings.NavigationItemStyle
+import org.futo.voiceinput.settings.PER_LANGUAGE_MODELS_IN_MIXED
 import org.futo.voiceinput.settings.STREAMING_TIER
 import org.futo.voiceinput.settings.ScreenTitle
 import org.futo.voiceinput.settings.SettingRadio
@@ -52,6 +54,18 @@ fun AdvancedScreen(
             subtitle = stringResource(R.string.allow_undertrained_languages_subtitle),
             onChanged = {
             }
+        )
+
+        SettingToggleDataStore(
+            stringResource(R.string.lynx_multi_language_in_recording),
+            MULTI_LANGUAGE_IN_RECORDING,
+            subtitle = stringResource(R.string.lynx_multi_language_in_recording_subtitle)
+        )
+
+        SettingToggleDataStore(
+            stringResource(R.string.lynx_per_language_models_in_mixed),
+            PER_LANGUAGE_MODELS_IN_MIXED,
+            subtitle = stringResource(R.string.lynx_per_language_models_in_mixed_subtitle)
         )
 
         NavigationItem(
