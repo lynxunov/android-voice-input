@@ -133,3 +133,11 @@ git submodule update --init --recursive
 - New: Advanced → pause length slider (200–1500 ms, default 350; inactive while Auto-stop is on). Mixed-language chunking uses it too.
 - New: "Processing part k of n" progress for chunked recordings (producer/consumer, total known right after stop).
 - Not yet: separate language-ID model, merging same-language chunks, parallel chunk transcription, show detected languages.
+
+## 1.5.2-lynx – readiness, UI glitches, noise
+- Fix: models are loaded *before* the microphone opens and the start sound plays (first recording after app start no longer records/beeps during loading).
+- Fix: "Processing…" no longer covers the recording screen while chunks are processed in the background (status/progress are only shown after recording stopped).
+- Fix: progress text ("Processing part k of n…") was overwritten by "Processing…" immediately; now set after the status.
+- Fix: the model summary under "Model" on the main settings page refreshes after imports/removals and selection changes.
+- Fix: chunks that are only background noise (loudest moment < 20 % of the loudest speech so far) are dropped, which prevents Whisper hallucinating sentences after speech (e.g. paper rustling).
+- Open: first chunk sometimes duplicated / detected in the wrong language (not reproducible yet; short first chunks are the prime suspect).

@@ -101,7 +101,7 @@ class AudioRecognizer(
     private val listener: AudioRecognizerListener,
     private val settings: AudioRecognizerSettings
 ) {
-    private var isRecording = false
+    @Volatile private var isRecording = false
     private var recorder: AudioRecord? = null
 
     private val modelRunner = MultiModelRunner(modelManager)
@@ -499,30 +499,37 @@ class AudioRecognizer(
         stopSignal = CompletableDeferred()
         audioChannel.close()
         audioChannel = Channel(Channel.UNLIMITED)
-        val device = try {
-            createRecorderAndJob(settings.recordingConfiguration.preferBluetoothMic)
-        } catch (e: SecurityException) {
-            // It's possible we may have lost permission, so let's just ask for permission again
-            clearCommunicationDevice()
-            requestPermission()
-            return
-        }
 
-        focusAudio()
-
-        listener.recordingStarted(device)
-
+        // Fork: the models are loaded first ("loading" is on screen); only when everything is ready
+        // does the microphone open and the start sound play.
         modelJob = lifecycleScope.launch {
-            withContext(Dispatchers.Default) {
+            val loaded = withContext(Dispatchers.Default) {
                 try {
                     preloadModels()
-                } catch(_: InvalidModelException) {
+                    true
+                } catch (_: InvalidModelException) {
                     withContext(Dispatchers.Main) {
                         reset()
                         listener.modelLoadingFailed()
                     }
+                    false
                 }
+            }
+            if (!loaded) return@launch
 
+            val device = try {
+                createRecorderAndJob(settings.recordingConfiguration.preferBluetoothMic)
+            } catch (e: SecurityException) {
+                // It's possible we may have lost permission, so let's just ask for permission again
+                clearCommunicationDevice()
+                requestPermission()
+                return@launch
+            }
+
+            focusAudio()
+            listener.recordingStarted(device)
+
+            withContext(Dispatchers.Default) {
                 yield()
 
                 val text = modelRunner.run(
@@ -555,6 +562,8 @@ class AudioRecognizer(
 
     private val runnerCallback: ModelInferenceCallback = object : ModelInferenceCallback {
         override fun updateStatus(state: InferenceState) {
+            // Fork: chunks are processed while still recording; do not cover the recording UI with "Processing…".
+            if (isRecording) return
             listener.decodingStatus(state)
         }
 
@@ -563,6 +572,7 @@ class AudioRecognizer(
         }
 
         override fun progress(part: Int, total: Int) {
+            if (isRecording) return
             listener.decodingProgress(part, total)
         }
 

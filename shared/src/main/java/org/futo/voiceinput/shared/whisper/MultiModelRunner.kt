@@ -239,12 +239,13 @@ class MultiModelRunner(
             var pending: FloatArray? = null
             var count = 0
 
-            suspend fun runChunk(chunk: FloatArray) {
+            suspend fun runChunk(chunk: FloatArray, part: Int, total: Int) {
                 val shown = { partial: String ->
                     callback.partialResult(glossary.processResult((texts + partial).joinToString(" ")))
                 }
                 val text = try {
                     callback.updateStatus(InferenceState.Encoding)
+                    callback.progress(part, total)
                     primaryModel.infer(
                         sampleFlow = flowOf(chunk),
                         prompt = glossary.compiledWords,
@@ -283,11 +284,8 @@ class MultiModelRunner(
                 count++
                 when (count) {
                     1 -> pending = chunk
-                    2 -> {
-                        callback.progress(1, produced); runChunk(pending!!); pending = null
-                        callback.progress(2, produced); runChunk(chunk)
-                    }
-                    else -> { callback.progress(count, produced); runChunk(chunk) }
+                    2 -> { runChunk(pending!!, 1, produced); pending = null; runChunk(chunk, 2, produced) }
+                    else -> runChunk(chunk, count, produced)
                 }
             }
             producer.join()

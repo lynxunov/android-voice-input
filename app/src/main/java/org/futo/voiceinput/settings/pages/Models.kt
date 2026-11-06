@@ -55,7 +55,10 @@ import org.futo.voiceinput.theme.Typography
 @Composable
 fun modelsSubtitle(): String? {
     val context = LocalContext.current
-    val models = remember {
+    // Recompute when the selection changes or a file was imported/removed in the Model Manager.
+    val options = useDataStore(MODEL_OPTIONS).value
+    val picks = org.futo.voiceinput.models.ModelPickerActivity.picksCompleted.intValue
+    val models = remember(options, picks) {
         context.loadCurrentModelList()
     }
 
