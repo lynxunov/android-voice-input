@@ -204,7 +204,8 @@ class VoiceInputMethodService : InputMethodService(), LifecycleOwner, ViewModelS
                 }
 
                 override fun recordingStarted(device: MicrophoneDeviceState) {
-
+                    // Fork: some themes (e.g. AMOLED) left the first frame stale until touched.
+                    composeView?.invalidate()
                 }
 
                 override fun finished(result: String) {

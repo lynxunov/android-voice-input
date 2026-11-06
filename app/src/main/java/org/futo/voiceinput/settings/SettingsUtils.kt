@@ -19,6 +19,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -114,6 +117,21 @@ fun SettingsMain(
 ) {
     val settingsUiState by settingsViewModel.uiState.collectAsState()
 
+    // Fork: on the overview, a single back gesture only warns; the second one within 2 s leaves.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val doubleBack = useDataStore(DOUBLE_BACK_EXIT.key, DOUBLE_BACK_EXIT.default).value
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    var lastBack by remember { mutableStateOf(0L) }
+    androidx.activity.compose.BackHandler(enabled = doubleBack && currentRoute == "home") {
+        val now = System.currentTimeMillis()
+        if (now - lastBack < 2000) {
+            (context as? android.app.Activity)?.finish()
+        } else {
+            lastBack = now
+            android.widget.Toast.makeText(context, R.string.lynx_press_back_again, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = "home",
@@ -130,6 +148,7 @@ fun SettingsMain(
         composable("models") { ModelsScreen(settingsViewModel, navController) }
         composable("input") { InputScreen(settingsViewModel, navController) }
         composable("themes") { ThemeScreen(navController) }
+        composable("dictionary") { org.futo.voiceinput.settings.pages.DictionaryScreen(navController) }
 
         composable("supportFuto") { SupportFutoScreen(navController) }
 

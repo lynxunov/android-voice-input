@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
@@ -47,6 +48,8 @@ data class DecodingConfiguration(
     val useChunkContext: Boolean = true,
     /** Fork: if two languages are given, mixed-language chunks are detected among these only. */
     val primaryLanguages: Set<Language> = emptySet(),
+    /** Fork: dictionary / blocklist entries. */
+    val dictionary: List<DictionaryEntry> = emptyList(),
 )
 
 private fun<T> MutableSet<T>.flatMapInPlace(transformator: (T) -> Iterable<T>) {
@@ -182,11 +185,25 @@ class MultiModelRunner(
         val allowedLanguages = decodingConfiguration.languages.map { it.toWhisperString() }.toTypedArray()
         val bailLanguages = runConfiguration.languageSpecificModels.filter { it.value != runConfiguration.primaryModel }.keys.map { it.toWhisperString() }.toTypedArray()
 
+        val languageCodes = allowedLanguages.toList()
         val glossary = GlossaryProcessor.compileGlossary(
             runConfiguration.primaryModel,
             decodingConfiguration.languages,
-            decodingConfiguration.glossary
+            (decodingConfiguration.glossary + decodingConfiguration.dictionary.termsFor(DictKind.WORD, languageCodes)).distinct()
         )
+
+        // Result clean-up: spelling from the dictionary, no stray writing systems, then blocklist.
+        fun tidy(text: String) = ScriptFilter.apply(glossary.processResult(text), languageCodes)
+        val blockAll = decodingConfiguration.dictionary.termsFor(DictKind.BLOCK, languageCodes)
+        fun clean(text: String) = Blocklist.apply(tidy(text), blockAll)
+
+        // A flow that can be collected only once, like the live audio stream of the classic path.
+        fun oneShot(chunk: FloatArray): Flow<FloatArray> {
+            val channel = kotlinx.coroutines.channels.Channel<FloatArray>(1)
+            channel.trySend(chunk)
+            channel.close()
+            return channel.receiveAsFlow()
+        }
 
         // Upstream behaviour: one language for the whole recording; bail to a per-language model if needed.
         suspend fun classic(flow: Flow<FloatArray>): String = try {
@@ -197,7 +214,7 @@ class MultiModelRunner(
                 languages = allowedLanguages,
                 bailLanguages = bailLanguages,
                 partialResultCallback = {
-                    callback.partialResult(glossary.processResult(it))
+                    callback.partialResult(clean(it))
                 },
                 tier = decodingConfiguration.tier,
             )
@@ -215,7 +232,7 @@ class MultiModelRunner(
                 languages = arrayOf(e.language),
                 bailLanguages = arrayOf(),
                 partialResultCallback = {
-                    callback.partialResult(glossary.processResult(it))
+                    callback.partialResult(clean(it))
                 },
                 tier = 3,//decodingConfiguration.tier,
             )
@@ -235,7 +252,7 @@ class MultiModelRunner(
                 val trimmed = FloatArray(parts.sumOf { it.size })
                 var at = 0
                 for (part in parts) { part.copyInto(trimmed, at); at += part.size }
-                classic(if (trimmed.isEmpty()) emptyFlow() else flowOf(trimmed))
+                classic(if (trimmed.isEmpty()) emptyFlow() else oneShot(trimmed))
             } else classic(sampleFlow.filter { it.isNotEmpty() })
         } else {
             // Fork: pause-segmented, per-chunk language detection.
@@ -252,7 +269,7 @@ class MultiModelRunner(
 
             suspend fun runChunk(chunk: FloatArray, part: Int, total: Int) {
                 val shown = { partial: String ->
-                    callback.partialResult(glossary.processResult((texts + partial).joinToString(" ")))
+                    callback.partialResult(tidy((texts + partial).joinToString(" ")))
                 }
                 // Earlier text gives Whisper context (names, topic, spelling) for short chunks.
                 val chunkPrompt = if (decodingConfiguration.useChunkContext && texts.isNotEmpty())
@@ -283,8 +300,14 @@ class MultiModelRunner(
                         tier = 3,
                     )
                 }
-                if (text.isNotBlank()) texts.add(collapseRepeat(text.trim()))
-                primaryModel.detectedLanguage()?.let { getLanguageFromWhisperString(it) }?.let { callback.languageDetected(it) }
+                val detected = primaryModel.detectedLanguage()
+                detected?.let { getLanguageFromWhisperString(it) }?.let { callback.languageDetected(it) }
+                // Blocklist entries of the detected language (or of all enabled ones, if unknown)
+                val blockHere = decodingConfiguration.dictionary.termsFor(
+                    DictKind.BLOCK, if (detected != null && detected in languageCodes) listOf(detected) else languageCodes
+                )
+                val cleaned = Blocklist.apply(tidy(collapseRepeat(text.trim())), blockHere)
+                if (cleaned.isNotBlank()) texts.add(cleaned)
             }
 
             // Producer cuts chunks as audio arrives; consumer transcribes them in order. After the user
@@ -308,12 +331,12 @@ class MultiModelRunner(
 
             when (count) {
                 0 -> classic(emptyFlow())
-                1 -> classic(flowOf(pending!!))
+                1 -> classic(oneShot(pending!!))
                 else -> texts.joinToString(" ")
             }
         }
 
-        return@coroutineScope glossary.processResult(result)
+        return@coroutineScope clean(result)
     }
 
     fun cancelAll() {

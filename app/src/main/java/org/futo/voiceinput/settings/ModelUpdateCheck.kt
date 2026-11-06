@@ -20,17 +20,16 @@ fun ConditionalModelUpdate() {
             .filter { it.second != ModelPresence.Exists }
     }
     if(models.isNotEmpty()) {
+        // Fork: nothing is downloaded; the only fix is importing a file in the Model Manager.
+        val missing = models.filter { it.second == ModelPresence.Missing }.map { it.first }
+        val anyPresent = remember(ModelPickerActivity.picksCompleted.intValue) {
+            context.loadCurrentModelList().any { it.exists(context) }
+        }
         NavigationItem(
-            title = stringResource(
-                if(models.any { it.second == ModelPresence.Missing})
-                    R.string.voice_input_window_indicator_model_requires_download
-                else R.string.voice_input_window_indicator_model_update_available
-            ),
-            subtitle = models.map { stringResource(it.first.name) }.joinToString(", "),
+            title = stringResource(R.string.lynx_no_model_banner),
+            subtitle = if (anyPresent) missing.joinToString(", ") { context.getString(it.name) } else null,
             style = NavigationItemStyle.Misc,
-            navigate = {
-                context.startModelDownloadActivity(models.map { it.first })
-            }
+            navigate = { context.startActivity(android.content.Intent(context, ModelPickerActivity::class.java)) }
         )
     }
 }

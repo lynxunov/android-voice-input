@@ -127,6 +127,11 @@ val SHOW_DETECTED_LANGUAGES = SettingsKey(booleanPreferencesKey("lynx_show_detec
 val CUT_LONG_PAUSES = SettingsKey(booleanPreferencesKey("lynx_cut_long_pauses"), true)
 val PAUSE_GAP_MS = SettingsKey(intPreferencesKey("lynx_pause_gap_ms"), 350)
 
+val PAUSE_BUTTON_RIGHT = SettingsKey(booleanPreferencesKey("lynx_pause_button_right"), true)
+val DOUBLE_BACK_EXIT = SettingsKey(booleanPreferencesKey("lynx_double_back_exit"), true)
+val STOP_GRACE_MS = SettingsKey(intPreferencesKey("lynx_stop_grace_ms"), 600)
+val DICTIONARY_V2 = SettingsKey(stringPreferencesKey("lynx_dictionary_v2"), "")
+
 val PERSONAL_DICTIONARY = SettingsKey(stringPreferencesKey("personal_dict"), "")
 
 val THEME_KEY = SettingsKey(

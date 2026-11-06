@@ -1,26 +1,29 @@
 package org.futo.voiceinput.shared.whisper
 
+import com.konovalov.vad.Vad
+import com.konovalov.vad.config.FrameSize
+import com.konovalov.vad.config.Mode
+import com.konovalov.vad.config.Model
+import com.konovalov.vad.config.SampleRate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlin.math.max
-import kotlin.math.sqrt
 
 /**
- * Fork addition: splits a live 16 kHz mono sample stream into chunks at pauses between words/phrases.
- * Each chunk can then be language-detected and transcribed on its own, which is what makes switching
- * language between phrases of one recording possible (and keeps every inference short).
+ * Fork addition: splits a live 16 kHz mono sample stream into chunks at pauses between phrases.
+ * Each chunk can then be language-detected and transcribed on its own (mixed-language dictation).
  *
- * Energy based (cheap, model independent). The speech level adapts, so quiet and loud rooms both work.
+ * The pause decision uses WebRTC speech detection (not loudness): quiet or fast speech is never mistaken
+ * for silence, and only audio the detector calls non-speech is discarded. An empty array in the input is a
+ * "pause marker" and closes the current chunk immediately.
  */
 private const val SAMPLE_RATE = 16000
-private const val FRAME = SAMPLE_RATE / 20            // 50 ms
-private const val DEFAULT_GAP_MS = 350                 // silence that closes a chunk
-private const val MIN_SPEECH_FRAMES = 16              // a chunk needs >= 0.8 s of speech, else it merges forward
-private const val TAIL_SAMPLES = SAMPLE_RATE / 10     // 100 ms of silence kept after speech
-private const val HEAD_SAMPLES = SAMPLE_RATE * 3 / 20 // 150 ms of silence kept before next chunk
+private const val FRAME = 480                          // 30 ms, the detector's frame size
+private const val DEFAULT_GAP_MS = 350
+private const val MIN_SPEECH_FRAMES = 27               // a chunk needs >= 0.8 s of speech, else it merges forward
+private const val TAIL_SAMPLES = SAMPLE_RATE / 10      // 100 ms of silence kept after speech
+private const val HEAD_SAMPLES = SAMPLE_RATE * 3 / 20  // 150 ms of silence kept before the next chunk
 private const val MAX_CHUNK_SAMPLES = SAMPLE_RATE * 25
-private const val MIN_THRESHOLD = 0.004f
-
 
 private class FloatBuf {
     var data = FloatArray(SAMPLE_RATE * 8)
@@ -38,12 +41,6 @@ private class FloatBuf {
         data.copyInto(data, 0, n, size)
         size -= n
     }
-
-    fun rms(from: Int, len: Int): Float {
-        var sum = 0.0
-        for (i in from until from + len) sum += data[i] * data[i]
-        return sqrt(sum / len).toFloat()
-    }
 }
 
 /**
@@ -55,14 +52,17 @@ fun Flow<FloatArray>.segmentByPauses(
     accept: ((FloatArray) -> Boolean)? = null,
 ): Flow<FloatArray> {
     val upstream = this
-    val gapFrames = max(2, gapMs / 50)
+    val gapFrames = max(2, (gapMs + FRAME * 1000 / SAMPLE_RATE - 1) / (FRAME * 1000 / SAMPLE_RATE))
     return flow {
+        val vad = Vad.builder().setModel(Model.WEB_RTC_GMM).setMode(Mode.NORMAL)
+            .setFrameSize(FrameSize.FRAME_SIZE_480).setSampleRate(SampleRate.SAMPLE_RATE_16K)
+            .setSpeechDurationMs(60).setSilenceDurationMs(90).build()
+        val frame = ShortArray(FRAME)
         val buf = FloatBuf()
         var scanned = 0
         var speechFrames = 0
         var silentRun = 0
         var lastSpeechEnd = 0
-        var peak = 0f
         var emitted = 0
         var vetoed: FloatArray? = null
 
@@ -75,46 +75,49 @@ fun Flow<FloatArray>.segmentByPauses(
             }
         }
 
-        upstream.collect { chunk ->
-            if (chunk.isEmpty()) {
-                // Pause marker: close the current chunk now, whatever its length, and start fresh after the pause.
-                if (speechFrames > 0 && buf.size > 0) offer(buf.copy(0, buf.size))
-                buf.dropFirst(buf.size)
-                scanned = 0; speechFrames = 0; silentRun = 0; lastSpeechEnd = 0
-                return@collect
-            }
-            buf.append(chunk)
-            while (buf.size - scanned >= FRAME) {
-                val rms = buf.rms(scanned, FRAME)
-                scanned += FRAME
-                peak = max(rms, peak * 0.995f)
-                val threshold = max(MIN_THRESHOLD, peak * 0.12f)
-                if (rms >= threshold) {
-                    speechFrames++
-                    silentRun = 0
-                    lastSpeechEnd = scanned
-                } else {
-                    silentRun++
+        try {
+            upstream.collect { chunk ->
+                if (chunk.isEmpty()) {
+                    // Pause marker: close the current chunk now, whatever its length.
+                    if (speechFrames > 0 && buf.size > 0) offer(buf.copy(0, buf.size))
+                    buf.dropFirst(buf.size)
+                    scanned = 0; speechFrames = 0; silentRun = 0; lastSpeechEnd = 0
+                    return@collect
                 }
+                buf.append(chunk)
+                while (buf.size - scanned >= FRAME) {
+                    for (i in 0 until FRAME) frame[i] = (buf.data[scanned + i].coerceIn(-1f, 1f) * Short.MAX_VALUE).toInt().toShort()
+                    val speech = vad.isSpeech(frame)
+                    scanned += FRAME
+                    if (speech) {
+                        speechFrames++
+                        silentRun = 0
+                        lastSpeechEnd = scanned
+                    } else {
+                        silentRun++
+                    }
 
-                if (speechFrames >= MIN_SPEECH_FRAMES && silentRun >= gapFrames) {
-                    val cut = minOf(buf.size, lastSpeechEnd + TAIL_SAMPLES)
-                    offer(buf.copy(0, cut))
-                    val keepFrom = maxOf(cut, scanned - HEAD_SAMPLES).coerceAtMost(scanned)
-                    buf.dropFirst(keepFrom)
-                    scanned -= keepFrom
-                    speechFrames = 0; silentRun = 0; lastSpeechEnd = 0
-                } else if (scanned >= MAX_CHUNK_SAMPLES) {
-                    offer(buf.copy(0, scanned))
-                    buf.dropFirst(scanned)
-                    scanned = 0
-                    speechFrames = 0; silentRun = 0; lastSpeechEnd = 0
+                    if (speechFrames >= MIN_SPEECH_FRAMES && silentRun >= gapFrames) {
+                        val cut = minOf(buf.size, lastSpeechEnd + TAIL_SAMPLES)
+                        offer(buf.copy(0, cut))
+                        val keepFrom = maxOf(cut, scanned - HEAD_SAMPLES).coerceAtMost(scanned)
+                        buf.dropFirst(keepFrom)
+                        scanned -= keepFrom
+                        speechFrames = 0; silentRun = 0; lastSpeechEnd = 0
+                    } else if (scanned >= MAX_CHUNK_SAMPLES) {
+                        offer(buf.copy(0, scanned))
+                        buf.dropFirst(scanned)
+                        scanned = 0
+                        speechFrames = 0; silentRun = 0; lastSpeechEnd = 0
+                    }
                 }
             }
+
+            // Remainder: keep it if it holds speech (or if nothing was emitted at all, like the classic path).
+            if (buf.size > 0 && (speechFrames > 0 || (emitted == 0 && vetoed == null))) offer(buf.copy(0, buf.size))
+            if (emitted == 0) vetoed?.let { emit(it) }
+        } finally {
+            vad.close()
         }
-
-        // Remainder: keep it if it holds speech (or if nothing was emitted at all, like the classic path).
-        if (buf.size > 0 && (speechFrames > 0 || (emitted == 0 && vetoed == null))) offer(buf.copy(0, buf.size))
-        if (emitted == 0) vetoed?.let { emit(it) }
     }
 }

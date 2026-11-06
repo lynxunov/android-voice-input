@@ -16,6 +16,10 @@ import org.futo.voiceinput.settings.LANGUAGE_TOGGLES
 import org.futo.voiceinput.settings.PRIMARY_LANGUAGES
 import org.futo.voiceinput.settings.SHOW_DETECTED_LANGUAGES
 import org.futo.voiceinput.settings.SettingItem
+import org.futo.voiceinput.settings.StepSliderSetting
+import org.futo.voiceinput.settings.PAUSE_BUTTON_RIGHT
+import org.futo.voiceinput.settings.DOUBLE_BACK_EXIT
+import org.futo.voiceinput.settings.STOP_GRACE_MS
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.TextButton
@@ -108,7 +112,7 @@ fun AdvancedScreen(
         val chosen = primary.value.filter { it in enabledCodes }
         SettingItem(
             title = stringResource(R.string.lynx_primary_languages),
-            subtitle = if (chosen.size == 2) chosen.joinToString(" + ") { langName(it) }
+            subtitle = if (chosen.size >= 2) chosen.joinToString(" + ") { langName(it) }
                        else stringResource(R.string.lynx_primary_languages_subtitle),
             onClick = { showPrimaryDialog = true },
             disabled = enabledCodes.size < 3,
@@ -116,18 +120,22 @@ fun AdvancedScreen(
         ) { }
         if (showPrimaryDialog) {
             var selection by remember { mutableStateOf(chosen.toSet()) }
+            val maxPick = enabledCodes.size - 1
             AlertDialog(
                 onDismissRequest = { showPrimaryDialog = false },
                 title = { Text(stringResource(R.string.lynx_primary_languages)) },
                 text = {
                     Column {
-                        Text(stringResource(R.string.lynx_primary_languages_hint))
+                        Text(stringResource(R.string.lynx_primary_languages_hint, maxPick))
+                        TextButton(onClick = { selection = emptySet() }, enabled = selection.isNotEmpty()) {
+                            Text(stringResource(R.string.lynx_select_none))
+                        }
                         enabledCodes.sorted().forEach { code ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(
                                     checked = code in selection,
                                     onCheckedChange = { on ->
-                                        selection = if (on) { if (selection.size < 2) selection + code else selection } else selection - code
+                                        selection = if (on) { if (selection.size < maxPick) selection + code else selection } else selection - code
                                     }
                                 )
                                 Text(langName(code))
@@ -137,8 +145,8 @@ fun AdvancedScreen(
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        // exactly two languages, or none (= all enabled languages are considered)
-                        primary.setValue(if (selection.size == 2) selection else emptySet())
+                        // two or more languages (at most enabled − 1), or none (= all enabled languages are considered)
+                        primary.setValue(if (selection.size >= 2) selection else emptySet())
                         showPrimaryDialog = false
                     }) { Text(stringResource(android.R.string.ok)) }
                 },
@@ -163,17 +171,39 @@ fun AdvancedScreen(
         // Pause length that splits speech (and is cut from the recording). Inactive while auto-stop is on.
         val autoStop = useDataStore(IS_VAD_ENABLED.key, IS_VAD_ENABLED.default).value
         val gap = useDataStore(PAUSE_GAP_MS.key, PAUSE_GAP_MS.default)
-        var sliderValue by remember(gap.value) { mutableFloatStateOf(gap.value.toFloat()) }
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            Text(stringResource(R.string.lynx_pause_length, sliderValue.toInt()))
-            Slider(
-                value = sliderValue,
-                onValueChange = { sliderValue = (it / 50f).toInt() * 50f },
-                onValueChangeFinished = { gap.setValue(sliderValue.toInt()) },
-                valueRange = 200f..1500f,
-                enabled = !autoStop,
-            )
-        }
+        StepSliderSetting(
+            title = stringResource(R.string.lynx_pause_length_title),
+            subtitle = stringResource(R.string.lynx_pause_length_subtitle),
+            value = gap.value,
+            onValueChange = { gap.setValue(it) },
+            unit = "ms",
+            sliderMin = 50, sliderMax = 1000, step = 25,
+            inputMin = 10, inputMax = 1500,
+            enabled = !autoStop,
+        )
+
+        val grace = useDataStore(STOP_GRACE_MS.key, STOP_GRACE_MS.default)
+        StepSliderSetting(
+            title = stringResource(R.string.lynx_stop_grace_title),
+            subtitle = stringResource(R.string.lynx_stop_grace_subtitle),
+            value = grace.value,
+            onValueChange = { grace.setValue(it) },
+            unit = "ms",
+            sliderMin = 0, sliderMax = 1500, step = 100,
+            inputMin = 0, inputMax = 3000,
+        )
+
+        SettingToggleDataStore(
+            stringResource(R.string.lynx_pause_button_right),
+            PAUSE_BUTTON_RIGHT,
+            subtitle = stringResource(R.string.lynx_pause_button_right_subtitle)
+        )
+
+        SettingToggleDataStore(
+            stringResource(R.string.lynx_double_back_exit),
+            DOUBLE_BACK_EXIT,
+            subtitle = stringResource(R.string.lynx_double_back_exit_subtitle)
+        )
 
         NavigationItem(
             title = stringResource(R.string.open_input_method_settings),

@@ -160,3 +160,18 @@ git submodule update --init --recursive
 - Fix: `RecognizeActivity.onDestroy` null-safe; `visibleToInstantApps` removed from `RecognizeActivity`.
 - Reviewed, not changed: `DummyService` returns a null binder (harmless); fd kept open per loaded SAF model (bounded, needed while the engine may read lazily); `is_ahead` and thread-count logic are upstream.
 - Decided against (for now): separate language-ID model – a second inference runtime + download, and Whisper would still need to transcribe each chunk; language-batched transcription needs pre-detection per chunk.
+
+## 1.7.0-lynx – VAD splitting, dictionaries/blocklist, layout, stop grace
+- Fix: duplicate sentence on single-language recordings – the classic path replayed a cold `flowOf` after a bail; chunks now go through a collect-once flow.
+- Fix/accuracy: pause splitting is decided by WebRTC speech detection instead of loudness; quiet/fast speech is no longer dropped as "silence". Chunks need ≥0.8 s of speech, otherwise merge forward.
+- Fix: output in writing systems of no enabled language (e.g. CJK on noise) is removed (`ScriptFilter`).
+- Fix: first launch no longer shows a model when none is imported ("No model selected"); banner says to open Model Manager and lists names only if some model exists.
+- Layout: Advanced spacing, descriptions keep distance to toggles, slider aligned with item text, streaming-tier options compact and aligned.
+- New: pause length slider 50–1000 ms (step 25) + tap value to type 10–1500 ms; off-grid values move to the neighbouring grid step.
+- New: primary language set may hold 2…(enabled−1) languages; "Select none" button.
+- New: pause button moved up/right; side setting (default right, steps aside for the Bluetooth button).
+- New: double-back-to-exit on the settings overview (toggle).
+- New: Max stop delay (0–3000 ms, default 600): after Stop, recording continues while speech is still detected, up to the max; "Stopping…" shown.
+- New: Dictionary page (Models → Dictionary): words per language / all languages with per-language exclusions, linked spellings across languages, and blocklist (words/phrases, case-insensitive, whole-word). Old plain-text dictionary is imported once. Stored as JSON in `lynx_dictionary_v2`.
+- Workaround: compose view invalidated when recording starts (first keyboard open looked frozen until touched; cause unconfirmed).
+- Not yet: language-ID model, same-language merging, spoken punctuation.

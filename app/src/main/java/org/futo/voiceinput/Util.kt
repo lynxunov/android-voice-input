@@ -22,6 +22,9 @@ import org.futo.voiceinput.models.ModelPickerActivity
 import org.futo.voiceinput.models.withSafStorage
 import org.futo.voiceinput.settings.CURRENT_MIGRATION_LEVEL
 import org.futo.voiceinput.settings.CUT_LONG_PAUSES
+import org.futo.voiceinput.settings.PAUSE_BUTTON_RIGHT
+import org.futo.voiceinput.settings.DICTIONARY_V2
+import org.futo.voiceinput.settings.STOP_GRACE_MS
 import org.futo.voiceinput.settings.PRIMARY_LANGUAGES
 import org.futo.voiceinput.settings.SHOW_DETECTED_LANGUAGES
 import org.futo.voiceinput.settings.IGNORE_NON_SPEECH
@@ -354,6 +357,7 @@ fun Context.loadRecognizerSettings(inlinePartialResult: Boolean = false): Recogn
         shouldAnimateBubble = getSetting(ENABLE_ANIMATIONS),
         shouldPlaySounds = getSetting(ENABLE_SOUND),
         shouldShowDetectedLanguages = getSetting(SHOW_DETECTED_LANGUAGES),
+        pauseButtonRight = getSetting(PAUSE_BUTTON_RIGHT),
         shouldShowLanguageSelector = needLanguageSelector,
         modelRunConfiguration = MultiModelRunConfiguration(
             primaryModel = primaryModel,
@@ -372,12 +376,14 @@ fun Context.loadRecognizerSettings(inlinePartialResult: Boolean = false): Recogn
             ignoreNonSpeech = getSetting(IGNORE_NON_SPEECH),
             primaryLanguages = getSetting(PRIMARY_LANGUAGES).mapNotNull { getLanguageFromWhisperString(it) }.toSet(),
             useChunkContext = getSetting(USE_CHUNK_CONTEXT),
+            dictionary = org.futo.voiceinput.shared.whisper.DictionaryJson.parse(getSetting(DICTIONARY_V2)),
         ),
         recordingConfiguration = RecordingSettings(
             preferBluetoothMic = false,
             requestAudioFocus = true,
             canExpandSpace = !getSetting(ENABLE_30S_LIMIT),
             useVADAutoStop = getSetting(IS_VAD_ENABLED),
+            stopGraceMs = getSetting(STOP_GRACE_MS),
         )
     )
 }

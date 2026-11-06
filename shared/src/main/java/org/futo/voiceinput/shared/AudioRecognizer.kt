@@ -84,7 +84,9 @@ data class RecordingSettings(
     val preferBluetoothMic: Boolean,
     val requestAudioFocus: Boolean,
     val canExpandSpace: Boolean,
-    val useVADAutoStop: Boolean
+    val useVADAutoStop: Boolean,
+    /** Fork: max time the recording may continue after Stop while speech is still being detected (0 = off). */
+    val stopGraceMs: Int = 0,
 )
 
 data class AudioRecognizerSettings(
@@ -104,6 +106,9 @@ class AudioRecognizer(
 ) {
     @Volatile private var isRecording = false
     @Volatile private var isPaused = false
+    @Volatile private var stopRequestedAt = 0L
+    @Volatile private var lastSpeechAt = 0L
+    private val stopGraceMs = settings.recordingConfiguration.stopGraceMs
     private var recorder: AudioRecord? = null
 
     private val modelRunner = MultiModelRunner(modelManager)
@@ -351,8 +356,17 @@ class AudioRecognizer(
         val samples = ShortArray(1600)
         val recordingStartTime = System.currentTimeMillis()
 
+        var silentAfterStop = 0
         while (isRecording) {
             yield()
+
+            if (stopRequestedAt != 0L) {
+                val waited = System.currentTimeMillis() - stopRequestedAt
+                if (isPaused || waited >= stopGraceMs || silentAfterStop >= 4) {
+                    withContext(Dispatchers.Main) { completeStop() }
+                    return
+                }
+            }
 
             if (isPaused) {
                 // Hand over what is still buffered, close the mic, and mark a chunk boundary.
@@ -386,7 +400,7 @@ class AudioRecognizer(
             }
 
             // Run VAD
-            if(useVAD && vad != null) {
+            if(vad != null) {
                 var remainingSamples = nRead
                 var offset = 0
                 while (remainingSamples > 0) {
@@ -398,7 +412,10 @@ class AudioRecognizer(
                         if (!isSpeech) {
                             numConsecutiveNonSpeech++
                             numConsecutiveSpeech = 0
+                            if (stopRequestedAt != 0L) silentAfterStop++
                         } else {
+                            lastSpeechAt = System.currentTimeMillis()
+                            silentAfterStop = 0
                             numConsecutiveNonSpeech = 0
                             numConsecutiveSpeech++
                         }
@@ -499,7 +516,7 @@ class AudioRecognizer(
 
             recorderJob = lifecycleScope.launch {
                 withContext(Dispatchers.Default) {
-                    if(useVAD) {
+                    if(useVAD || stopGraceMs > 0) {
                         createVad().use { vad ->
                             recordingJob(recorder, vad)
                         }
@@ -532,6 +549,8 @@ class AudioRecognizer(
     }
 
     private fun startRecording() {
+        stopRequestedAt = 0L
+        lastSpeechAt = 0L
         stopSignal = CompletableDeferred()
         audioChannel.close()
         audioChannel = Channel(Channel.UNLIMITED)
@@ -622,6 +641,19 @@ class AudioRecognizer(
     }
 
     private fun onFinishRecording() {
+        // Fork: if speech was heard a moment ago, keep the microphone open briefly so the last syllables
+        // are not cut off; stop as soon as speech has ended (or the max delay is reached).
+        if (stopGraceMs > 0 && stopRequestedAt == 0L && !isPaused &&
+            System.currentTimeMillis() - lastSpeechAt < 400) {
+            stopRequestedAt = System.currentTimeMillis()
+            listener.stopping()
+            return
+        }
+        completeStop()
+    }
+
+    private fun completeStop() {
+        stopRequestedAt = 0L
         recorderJob?.cancel()
 
         if (!isRecording) {

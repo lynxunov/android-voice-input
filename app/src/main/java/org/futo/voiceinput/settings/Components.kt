@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -136,18 +137,19 @@ fun SettingItem(
     onClick: () -> Unit,
     icon: (@Composable () -> Unit)? = null,
     disabled: Boolean = false,
+    compact: Boolean = false,
     content: @Composable () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .defaultMinSize(0.dp, 68.dp)
+            .defaultMinSize(0.dp, if (compact) 44.dp else 68.dp)
             .clickable(enabled = !disabled, onClick = {
                 if (!disabled) {
                     onClick()
                 }
             })
-            .padding(0.dp, 4.dp, 0.dp, 4.dp)
+            .padding(0.dp, if (compact) 0.dp else 10.dp, 0.dp, if (compact) 0.dp else 10.dp)
     ) {
         Spacer(modifier = Modifier.width(16.dp))
         Column(
@@ -167,6 +169,7 @@ fun SettingItem(
         Row(
             modifier = Modifier
                 .weight(1f)
+                .padding(end = 16.dp)
                 .align(Alignment.CenterVertically)
                 .alpha(
                     if (disabled) {
@@ -180,6 +183,7 @@ fun SettingItem(
                 Text(title, style = Typography.Heading.RegularMl)
 
                 if (subtitle != null) {
+                    Spacer(Modifier.height(2.dp))
                     Text(
                         subtitle,
                         style = Typography.SmallMl,
@@ -272,7 +276,11 @@ fun<T> SettingRadio(
 ) {
     val (value, setValue) = useDataStore(key = setting.key, default = setting.default)
 
-    ScreenTitle(title, showBack = false)
+    Text(
+        title,
+        style = Typography.Heading.RegularMl,
+        modifier = Modifier.padding(start = 76.dp, end = 16.dp, top = 16.dp, bottom = 4.dp)
+    )
     Column {
         options.zip(optionNames).forEach {
             SettingItem(
@@ -284,6 +292,7 @@ fun<T> SettingRadio(
                     }
                 },
                 disabled = disabled,
+                compact = true,
                 icon = { RadioButton(selected = value == it.first, onClick = {
                     if(!disabled) {
                         setValue(it.first)
@@ -399,5 +408,96 @@ fun NavigationItem(title: String, style: NavigationItemStyle, navigate: () -> Un
             NavigationItemStyle.Misc -> Icon(Icons.Default.ArrowForward, contentDescription = null)
             else -> {}
         }
+    }
+}
+
+/**
+ * Slider with a step grid plus exact keyboard entry (tap the value). The slider covers [sliderMin]..[sliderMax]
+ * in [step] units; typed values may use the wider [inputMin]..[inputMax] range at 1-unit precision. An off-grid
+ * value stays as it is until the slider is moved, then snaps to the next grid position in that direction.
+ */
+@Composable
+fun StepSliderSetting(
+    title: String,
+    subtitle: String? = null,
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    unit: String,
+    sliderMin: Int,
+    sliderMax: Int,
+    step: Int,
+    inputMin: Int,
+    inputMax: Int,
+    enabled: Boolean = true,
+) {
+    var shown by androidx.compose.runtime.remember(value) { androidx.compose.runtime.mutableIntStateOf(value) }
+    var showDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 76.dp, end = 28.dp, top = 10.dp, bottom = 10.dp)
+            .alpha(if (enabled) 1f else 0.5f)
+    ) {
+        Row(verticalAlignment = CenterVertically) {
+            Text(title, style = Typography.Heading.RegularMl, modifier = Modifier.weight(1f))
+            Text(
+                "$shown $unit",
+                style = Typography.Heading.RegularMl,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clickable(enabled = enabled) { showDialog = true }
+                    .padding(start = 12.dp, top = 4.dp, bottom = 4.dp)
+            )
+        }
+        if (subtitle != null) {
+            Text(subtitle, style = Typography.SmallMl, color = MaterialTheme.colorScheme.outline)
+        }
+        androidx.compose.material3.Slider(
+            value = shown.toFloat().coerceIn(sliderMin.toFloat(), sliderMax.toFloat()),
+            onValueChange = { raw ->
+                val snapped = (Math.round((raw - sliderMin) / step.toFloat()) * step + sliderMin)
+                    .coerceIn(sliderMin, sliderMax)
+                // Off-grid start (e.g. 261): the first move goes to the neighbouring grid position (275 / 250).
+                shown = if (shown % step != 0 || (shown - sliderMin) % step != 0) {
+                    val up = ((shown - sliderMin) / step + 1) * step + sliderMin
+                    val down = ((shown - sliderMin) / step) * step + sliderMin
+                    if (raw > shown) up.coerceAtMost(sliderMax) else if (raw < shown) down.coerceAtLeast(sliderMin) else shown
+                } else snapped
+            },
+            onValueChangeFinished = { onValueChange(shown) },
+            valueRange = sliderMin.toFloat()..sliderMax.toFloat(),
+            enabled = enabled,
+        )
+    }
+
+    if (showDialog) {
+        var text by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(shown.toString()) }
+        val parsed = text.toIntOrNull()
+        val valid = parsed != null && parsed in inputMin..inputMax
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text(title) },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = text,
+                    onValueChange = { v -> if (v.length <= 5 && v.all { it.isDigit() }) text = v },
+                    singleLine = true,
+                    isError = !valid,
+                    supportingText = { Text("$inputMin–$inputMax $unit") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(enabled = valid, onClick = {
+                    shown = parsed!!
+                    onValueChange(parsed)
+                    showDialog = false
+                }) { Text(stringResource(android.R.string.ok)) }
+            },
+            dismissButton = { TextButton(onClick = { showDialog = false }) { Text(stringResource(android.R.string.cancel)) } }
+        )
     }
 }

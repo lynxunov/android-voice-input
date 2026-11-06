@@ -62,7 +62,9 @@ fun modelsSubtitle(): String? {
         context.loadCurrentModelList()
     }
 
-    return models.joinToString { context.getString(it.name) }
+    val present = models.filter { it.exists(context) }
+    return if (present.isEmpty()) context.getString(R.string.lynx_no_model)
+    else present.joinToString { context.getString(it.name) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -146,9 +148,11 @@ fun ModelsScreen(
             )
         }
 
-        if(models.any { it.value.caps.supportsPersonalDict }) {
-            PersonalDictionaryEditor(disabled = false)
-        }
+        SettingItem(
+            title = stringResource(R.string.lynx_dictionary),
+            subtitle = stringResource(R.string.lynx_dictionary_subtitle),
+            onClick = { navController.navigate("dictionary") }
+        ) { }
 
         Spacer(modifier = Modifier.height(32.dp))
 

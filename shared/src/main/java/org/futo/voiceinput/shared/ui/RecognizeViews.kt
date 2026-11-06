@@ -197,7 +197,8 @@ fun InnerRecognize(
     partialText: String? = "",
     paused: Boolean = false,
     onTogglePause: (() -> Unit)? = null,
-    extraText: String = ""
+    extraText: String = "",
+    pauseOnRight: Boolean = true
 ) {
     Box(modifier = Modifier, contentAlignment = Alignment.Center) {
         AnimatedRecognizeCircle(magnitude = magnitude)
@@ -232,19 +233,23 @@ fun InnerRecognize(
 
         BluetoothToggleIcon(device)
 
-        if (onTogglePause != null) PauseResumeButton(paused, onTogglePause)
+        if (onTogglePause != null) PauseResumeButton(paused, onTogglePause, pauseOnRight, device?.value?.bluetoothAvailable == true)
     }
 }
 
 @Composable
-private fun BoxScope.PauseResumeButton(paused: Boolean, onToggle: () -> Unit) {
+private fun BoxScope.PauseResumeButton(paused: Boolean, onToggle: () -> Unit, right: Boolean, bluetoothButtonShown: Boolean) {
     val tint = MaterialTheme.colorScheme.onSurface
     val description = stringResource(if (paused) R.string.lynx_resume_recording else R.string.lynx_pause_recording)
     IconButton(
         onClick = onToggle,
         modifier = Modifier
-            .align(Alignment.BottomStart)
-            .offset(x = 16.dp, y = (-16).dp)
+            .align(if (right) Alignment.BottomEnd else Alignment.BottomStart)
+            // same edge distance on both sides; on the right it steps aside for the Bluetooth button
+            .offset(
+                x = if (right) -(38 + (if (bluetoothButtonShown) 48 else 0)).dp else 38.dp,
+                y = (-24).dp
+            )
             .semantics { contentDescription = description }
     ) {
         Canvas(Modifier.size(22.dp)) {

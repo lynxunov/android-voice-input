@@ -24,4 +24,7 @@ interface AudioRecognizerListener {
     fun updateMagnitude(magnitude: Float, state: MagnitudeState)
 
     fun processing()
+
+    /** Fork: Stop pressed while speech was still being heard; recording ends within the max stop delay. */
+    fun stopping() {}
 }

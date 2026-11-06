@@ -41,6 +41,7 @@ data class RecognizerViewSettings(
     val shouldShowLanguageSelector: Boolean,
     val shouldPlaySounds: Boolean,
     val shouldShowDetectedLanguages: Boolean = false,
+    val pauseButtonRight: Boolean = true,
 
     val modelRunConfiguration: MultiModelRunConfiguration,
     val decodingConfiguration: DecodingConfiguration,
@@ -103,6 +104,7 @@ class RecognizerView(
     }
 
     private val pausedState = mutableStateOf(false)
+    private val stoppingState = mutableStateOf(false)
     private val detectedLanguages = mutableStateOf<List<String>>(emptyList())
     private fun detectedLabel() =
         if (settings.shouldShowDetectedLanguages && detectedLanguages.value.isNotEmpty())
@@ -151,7 +153,8 @@ class RecognizerView(
                     partialText = partialDecodingText.value,
                     paused = pausedState.value,
                     onTogglePause = { togglePause() },
-                    extraText = detectedLabel()
+                    extraText = if (stoppingState.value) context.getString(R.string.lynx_stopping) else detectedLabel(),
+                    pauseOnRight = settings.pauseButtonRight
                 )
             }
 
@@ -292,7 +295,12 @@ class RecognizerView(
             currentViewState.value = CurrentView.InnerRecognize
         }
 
+        override fun stopping() {
+            stoppingState.value = true
+        }
+
         override fun processing() {
+            stoppingState.value = false
             loadingCircleText.value = context.getString(R.string.processing)
             currentViewState.value = CurrentView.LoadingCircle
         }

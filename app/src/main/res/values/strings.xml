@@ -293,6 +293,36 @@
     <string name="lynx_show_detected_languages">Show detected languages</string>
     <string name="lynx_show_detected_languages_subtitle">Shows the language(s) found in the recording while it is processed. Only available for models that report the detected language.</string>
     <string name="lynx_primary_languages">Primary language pair</string>
-    <string name="lynx_primary_languages_subtitle">Optional. Mixed-language recordings are then detected between these two languages only (more reliable). Needs three or more enabled languages.</string>
-    <string name="lynx_primary_languages_hint">Choose exactly two languages, or none to consider all enabled languages. Other languages still work for recordings in a single language.</string>
+    <string name="lynx_primary_languages_subtitle">Optional. Mixed-language recordings are then detected among these languages only (more reliable). Needs three or more enabled languages.</string>
+    <string name="lynx_primary_languages_hint">Choose two to %1$d languages, or none to consider all enabled languages. Other languages still work for recordings in a single language.</string>
+    <string name="lynx_select_none">Select none</string>
+    <string name="lynx_pause_length_title">Pause length</string>
+    <string name="lynx_pause_length_subtitle">Pause that splits speech into parts. Shorter helps fast speech; inactive while auto-stop is on. Tap the value to type it.</string>
+    <string name="lynx_stop_grace_title">Max stop delay</string>
+    <string name="lynx_stop_grace_subtitle">After Stop, keeps listening while you are still speaking, up to this long, so the last syllables are not cut. 0 = stop immediately.</string>
+    <string name="lynx_pause_button_right">Pause button on the right</string>
+    <string name="lynx_pause_button_right_subtitle">Off = left side.</string>
+    <string name="lynx_double_back_exit">Press back twice to exit settings</string>
+    <string name="lynx_double_back_exit_subtitle">Avoids leaving by accident from the overview.</string>
+    <string name="lynx_press_back_again">Press back again to exit</string>
+    <string name="lynx_no_model">No model selected</string>
+    <string name="lynx_no_model_banner">No model imported — open Model Manager</string>
+    <string name="lynx_dictionary">Dictionary</string>
+    <string name="lynx_dictionary_subtitle">Words that improve recognition, linked spellings across languages, and blocked words</string>
+    <string name="lynx_dict_add_word">Add word</string>
+    <string name="lynx_dict_add_word_subtitle">Names, terms, spellings per language or for all</string>
+    <string name="lynx_dict_add_block">Add blocked word or phrase</string>
+    <string name="lynx_dict_add_block_subtitle">Removed from results, per language or for all</string>
+    <string name="lynx_dict_words">Words</string>
+    <string name="lynx_dict_blocked">Blocked</string>
+    <string name="lynx_dict_all_languages">All languages</string>
+    <string name="lynx_dict_all_except">All languages except %1$s</string>
+    <string name="lynx_dict_edit">Edit entry</string>
+    <string name="lynx_dict_new">New entry</string>
+    <string name="lynx_dict_kind_word">Word (helps recognition)</string>
+    <string name="lynx_dict_kind_block">Blocked (removed from results)</string>
+    <string name="lynx_dict_hint_word">Fill one spelling per language to link them (e.g. Venlafaxin / venlafaxine). “All languages” applies to every language.</string>
+    <string name="lynx_dict_hint_block">Whole words or phrases, case-insensitive. Fill the languages it applies to, or “All languages”.</string>
+    <string name="lynx_dict_except">Not for these languages:</string>
+    <string name="lynx_dict_delete">Delete</string>
 </resources>
