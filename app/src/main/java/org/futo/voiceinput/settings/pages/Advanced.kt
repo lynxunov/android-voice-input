@@ -11,7 +11,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import org.futo.voiceinput.settings.IGNORE_NON_SPEECH
 import org.futo.voiceinput.settings.IS_VAD_ENABLED
+import org.futo.voiceinput.settings.USE_CHUNK_CONTEXT
 import org.futo.voiceinput.settings.PAUSE_GAP_MS
 import org.futo.voiceinput.settings.useDataStore
 import androidx.compose.ui.platform.LocalContext
@@ -79,6 +81,18 @@ fun AdvancedScreen(
             stringResource(R.string.lynx_per_language_models_in_mixed),
             PER_LANGUAGE_MODELS_IN_MIXED,
             subtitle = stringResource(R.string.lynx_per_language_models_in_mixed_subtitle)
+        )
+
+        SettingToggleDataStore(
+            stringResource(R.string.lynx_ignore_non_speech),
+            IGNORE_NON_SPEECH,
+            subtitle = stringResource(R.string.lynx_ignore_non_speech_subtitle)
+        )
+
+        SettingToggleDataStore(
+            stringResource(R.string.lynx_use_chunk_context),
+            USE_CHUNK_CONTEXT,
+            subtitle = stringResource(R.string.lynx_use_chunk_context_subtitle)
         )
 
         // Pause length that splits speech (and is cut from the recording). Inactive while auto-stop is on.

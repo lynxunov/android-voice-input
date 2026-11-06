@@ -22,6 +22,8 @@ import org.futo.voiceinput.models.ModelPickerActivity
 import org.futo.voiceinput.models.withSafStorage
 import org.futo.voiceinput.settings.CURRENT_MIGRATION_LEVEL
 import org.futo.voiceinput.settings.CUT_LONG_PAUSES
+import org.futo.voiceinput.settings.IGNORE_NON_SPEECH
+import org.futo.voiceinput.settings.USE_CHUNK_CONTEXT
 import org.futo.voiceinput.settings.PAUSE_GAP_MS
 import org.futo.voiceinput.settings.DISALLOW_SYMBOLS
 import org.futo.voiceinput.settings.ENABLE_30S_LIMIT
@@ -364,6 +366,8 @@ fun Context.loadRecognizerSettings(inlinePartialResult: Boolean = false): Recogn
             // With "Auto-stop on silence" on, the defaults apply and the user's pause options are inactive.
             pauseGapMs = if (getSetting(IS_VAD_ENABLED)) 350 else getSetting(PAUSE_GAP_MS),
             cutLongPauses = getSetting(CUT_LONG_PAUSES) && !getSetting(IS_VAD_ENABLED),
+            ignoreNonSpeech = getSetting(IGNORE_NON_SPEECH),
+            useChunkContext = getSetting(USE_CHUNK_CONTEXT),
         ),
         recordingConfiguration = RecordingSettings(
             preferBluetoothMic = false,

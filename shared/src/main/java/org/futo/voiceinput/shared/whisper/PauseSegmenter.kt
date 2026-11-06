@@ -21,9 +21,6 @@ private const val HEAD_SAMPLES = SAMPLE_RATE * 3 / 20 // 150 ms of silence kept 
 private const val MAX_CHUNK_SAMPLES = SAMPLE_RATE * 25
 private const val MIN_THRESHOLD = 0.004f
 
-// A chunk whose loudest moment is below this share of the loudest speech so far is background noise
-// (paper, rustling, ...). Whisper hallucinates sentences on such audio, so it is dropped.
-private const val NOISE_CHUNK_RATIO = 0.2f
 
 private class FloatBuf {
     var data = FloatArray(SAMPLE_RATE * 8)
@@ -49,7 +46,14 @@ private class FloatBuf {
     }
 }
 
-fun Flow<FloatArray>.segmentByPauses(gapMs: Int = DEFAULT_GAP_MS): Flow<FloatArray> {
+/**
+ * [accept] may veto a finished chunk (e.g. "not speech"). If every chunk of a recording is vetoed, the
+ * longest vetoed one is still emitted, so a wrong veto can never swallow a whole recording.
+ */
+fun Flow<FloatArray>.segmentByPauses(
+    gapMs: Int = DEFAULT_GAP_MS,
+    accept: ((FloatArray) -> Boolean)? = null,
+): Flow<FloatArray> {
     val upstream = this
     val gapFrames = max(2, gapMs / 50)
     return flow {
@@ -60,8 +64,16 @@ fun Flow<FloatArray>.segmentByPauses(gapMs: Int = DEFAULT_GAP_MS): Flow<FloatArr
         var lastSpeechEnd = 0
         var peak = 0f
         var emitted = 0
-        var chunkMax = 0f
-        var globalMax = 0f
+        var vetoed: FloatArray? = null
+
+        suspend fun offer(chunk: FloatArray) {
+            if (accept == null || accept(chunk)) {
+                emit(chunk)
+                emitted++
+            } else if (chunk.size > (vetoed?.size ?: 0)) {
+                vetoed = chunk
+            }
+        }
 
         upstream.collect { chunk ->
             buf.append(chunk)
@@ -69,8 +81,6 @@ fun Flow<FloatArray>.segmentByPauses(gapMs: Int = DEFAULT_GAP_MS): Flow<FloatArr
                 val rms = buf.rms(scanned, FRAME)
                 scanned += FRAME
                 peak = max(rms, peak * 0.995f)
-                chunkMax = max(chunkMax, rms)
-                globalMax = max(globalMax, rms)
                 val threshold = max(MIN_THRESHOLD, peak * 0.12f)
                 if (rms >= threshold) {
                     speechFrames++
@@ -82,19 +92,13 @@ fun Flow<FloatArray>.segmentByPauses(gapMs: Int = DEFAULT_GAP_MS): Flow<FloatArr
 
                 if (speechFrames >= MIN_SPEECH_FRAMES && silentRun >= gapFrames) {
                     val cut = minOf(buf.size, lastSpeechEnd + TAIL_SAMPLES)
-                    if (emitted == 0 || chunkMax >= NOISE_CHUNK_RATIO * globalMax) {
-                        emit(buf.copy(0, cut))
-                        emitted++
-                    }
-                    chunkMax = 0f
+                    offer(buf.copy(0, cut))
                     val keepFrom = maxOf(cut, scanned - HEAD_SAMPLES).coerceAtMost(scanned)
                     buf.dropFirst(keepFrom)
                     scanned -= keepFrom
                     speechFrames = 0; silentRun = 0; lastSpeechEnd = 0
                 } else if (scanned >= MAX_CHUNK_SAMPLES) {
-                    emit(buf.copy(0, scanned))
-                    emitted++
-                    chunkMax = 0f
+                    offer(buf.copy(0, scanned))
                     buf.dropFirst(scanned)
                     scanned = 0
                     speechFrames = 0; silentRun = 0; lastSpeechEnd = 0
@@ -103,6 +107,7 @@ fun Flow<FloatArray>.segmentByPauses(gapMs: Int = DEFAULT_GAP_MS): Flow<FloatArr
         }
 
         // Remainder: keep it if it holds speech (or if nothing was emitted at all, like the classic path).
-        if (buf.size > 0 && ((speechFrames > 0 && chunkMax >= NOISE_CHUNK_RATIO * globalMax) || emitted == 0)) emit(buf.copy(0, buf.size))
+        if (buf.size > 0 && (speechFrames > 0 || (emitted == 0 && vetoed == null))) offer(buf.copy(0, buf.size))
+        if (emitted == 0) vetoed?.let { emit(it) }
     }
 }

@@ -141,3 +141,11 @@ git submodule update --init --recursive
 - Fix: the model summary under "Model" on the main settings page refreshes after imports/removals and selection changes.
 - Fix: chunks that are only background noise (loudest moment < 20 % of the loudest speech so far) are dropped, which prevents Whisper hallucinating sentences after speech (e.g. paper rustling).
 - Open: first chunk sometimes duplicated / detected in the wrong language (not reproducible yet; short first chunks are the prime suspect).
+
+## 1.5.3-lynx – sorting, speech check, context, thread safety
+- Fix: Model Manager groups models by family (Whisper, asr4all, …), then by size.
+- Replace the loudness-based noise filter by a speech check (WebRTC VAD, share of speech frames; `SpeechCheck.kt`). Loud surroundings no longer suppress speech. If every chunk of a recording is rejected, the longest is still transcribed. Setting: Advanced → "Ignore sounds that are not speech" (default on).
+- New: each chunk is transcribed with the previous text (last 200 chars) as context. Setting: Advanced → "Use earlier text as context" (default on).
+- New: exact "A. A." duplicate output of one chunk is collapsed to one copy (Whisper artefact when audio starts abruptly).
+- Perf/robustness: `ModelManager` is thread-safe; recorder setup runs off the UI thread (first-start freeze under investigation).
+- Design notes: true same-language merging needs a detection-only pass per chunk (the engine does not report the detected language), i.e. ~2x encoder work and delayed transcription of the last run; context carry-over was chosen first as it gives most of the accuracy gain at no latency cost.

@@ -40,6 +40,10 @@ data class DecodingConfiguration(
     val pauseGapMs: Int = 350,
     /** Fork: single-language recordings: drop long silences before processing. */
     val cutLongPauses: Boolean = false,
+    /** Fork: drop chunks that contain no speech (noise) before transcription. */
+    val ignoreNonSpeech: Boolean = true,
+    /** Fork: give each chunk the text so far as context. */
+    val useChunkContext: Boolean = true,
 )
 
 private fun<T> MutableSet<T>.flatMapInPlace(transformator: (T) -> Iterable<T>) {
@@ -215,6 +219,7 @@ class MultiModelRunner(
         }
 
         val caps = runConfiguration.primaryModel.caps
+        val speechFilter: ((FloatArray) -> Boolean)? = if (decodingConfiguration.ignoreNonSpeech) ::chunkContainsSpeech else null
         val segmented = decodingConfiguration.segmentByPauses &&
                 allowedLanguages.size > 1 &&
                 caps.supportsLanguageDetection &&
@@ -223,7 +228,7 @@ class MultiModelRunner(
         val result = if (!segmented) {
             if (decodingConfiguration.cutLongPauses && !caps.supportsStreaming) {
                 // Silence costs processing time but carries no words: keep only speech with short pauses.
-                val parts = sampleFlow.segmentByPauses(decodingConfiguration.pauseGapMs).toList()
+                val parts = sampleFlow.segmentByPauses(decodingConfiguration.pauseGapMs, speechFilter).toList()
                 val trimmed = FloatArray(parts.sumOf { it.size })
                 var at = 0
                 for (part in parts) { part.copyInto(trimmed, at); at += part.size }
@@ -243,12 +248,16 @@ class MultiModelRunner(
                 val shown = { partial: String ->
                     callback.partialResult(glossary.processResult((texts + partial).joinToString(" ")))
                 }
+                // Earlier text gives Whisper context (names, topic, spelling) for short chunks.
+                val chunkPrompt = if (decodingConfiguration.useChunkContext && texts.isNotEmpty())
+                    (glossary.compiledWords + " " + texts.joinToString(" ").takeLast(200)).trim()
+                else glossary.compiledWords
                 val text = try {
                     callback.updateStatus(InferenceState.Encoding)
                     callback.progress(part, total)
                     primaryModel.infer(
                         sampleFlow = flowOf(chunk),
-                        prompt = glossary.compiledWords,
+                        prompt = chunkPrompt,
                         languages = allowedLanguages,
                         bailLanguages = mixedBail,
                         partialResultCallback = shown,
@@ -261,14 +270,14 @@ class MultiModelRunner(
                     if (loader == null) throw e
                     modelManager.obtainModel(loader).infer(
                         sampleFlow = flowOf(e.samples),
-                        prompt = glossary.compiledWords,
+                        prompt = chunkPrompt,
                         languages = arrayOf(e.language),
                         bailLanguages = arrayOf(),
                         partialResultCallback = shown,
                         tier = 3,
                     )
                 }
-                if (text.isNotBlank()) texts.add(text.trim())
+                if (text.isNotBlank()) texts.add(collapseRepeat(text.trim()))
             }
 
             // Producer cuts chunks as audio arrives; consumer transcribes them in order. After the user
@@ -277,7 +286,7 @@ class MultiModelRunner(
             var produced = 0
             val producer = launch {
                 try {
-                    sampleFlow.segmentByPauses(decodingConfiguration.pauseGapMs).collect { produced++; chunks.send(it) }
+                    sampleFlow.segmentByPauses(decodingConfiguration.pauseGapMs, speechFilter).collect { produced++; chunks.send(it) }
                 } finally { chunks.close() }
             }
             for (chunk in chunks) {
@@ -303,4 +312,17 @@ class MultiModelRunner(
     fun cancelAll() {
         modelManager.cancelAll()
     }
+}
+
+/**
+ * Whisper sometimes outputs a short utterance twice ("This is a test. This is a test.") when audio starts
+ * abruptly. If a text is exactly one passage repeated twice (>= 3 words each), keep one copy.
+ */
+internal fun collapseRepeat(text: String): String {
+    val words = text.split(Regex("\\s+")).filter { it.isNotEmpty() }
+    if (words.size < 6 || words.size % 2 != 0) return text
+    val half = words.size / 2
+    fun norm(w: String) = w.lowercase().trim { !it.isLetterOrDigit() }
+    for (i in 0 until half) if (norm(words[i]) != norm(words[i + half])) return text
+    return words.take(half).joinToString(" ")
 }

@@ -120,6 +120,8 @@ val MANUALLY_SELECT_LANGUAGE = SettingsKey(booleanPreferencesKey("manually_selec
 val MULTI_LANGUAGE_IN_RECORDING = SettingsKey(booleanPreferencesKey("lynx_multi_language_in_recording"), true)
 val PER_LANGUAGE_MODELS_IN_MIXED = SettingsKey(booleanPreferencesKey("lynx_per_language_models_in_mixed"), false)
 
+val IGNORE_NON_SPEECH = SettingsKey(booleanPreferencesKey("lynx_ignore_non_speech"), true)
+val USE_CHUNK_CONTEXT = SettingsKey(booleanPreferencesKey("lynx_use_chunk_context"), true)
 val CUT_LONG_PAUSES = SettingsKey(booleanPreferencesKey("lynx_cut_long_pauses"), true)
 val PAUSE_GAP_MS = SettingsKey(intPreferencesKey("lynx_pause_gap_ms"), 350)
 

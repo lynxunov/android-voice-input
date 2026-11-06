@@ -10,27 +10,24 @@ class ModelManager(
 ) {
     private val loadedModels: HashMap<Any, WhisperGGML> = hashMapOf()
 
-    fun obtainModel(model: ModelLoader): WhisperGGML {
-        val key = model.key(context)
-        if (!loadedModels.contains(key)) {
-            loadedModels[key] = model.loadGGML(context)
-        }
+    // Fork: loads can run in parallel (preload) and cleanUp() can run from onTrimMemory; guard the map.
+    private val lock = Any()
 
-        return loadedModels[key]!!
+    fun obtainModel(model: ModelLoader): WhisperGGML = synchronized(lock) {
+        val key = model.key(context)
+        loadedModels.getOrPut(key) { model.loadGGML(context) }
     }
 
     fun cancelAll() {
-        loadedModels.forEach {
-            it.value.cancel()
-        }
+        val models = synchronized(lock) { loadedModels.values.toList() }
+        models.forEach { it.cancel() }
     }
 
     suspend fun cleanUp() {
-        for (model in loadedModels.entries) {
-            model.value.cancel()
-            model.value.close()
+        val models = synchronized(lock) { loadedModels.values.toList().also { loadedModels.clear() } }
+        for (model in models) {
+            model.cancel()
+            model.close()
         }
-
-        loadedModels.clear()
     }
 }

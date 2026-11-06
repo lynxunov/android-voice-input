@@ -182,10 +182,14 @@ private fun ModelPickerScreen() {
     val tests = remember { mutableStateMapOf<String, String>() }
 
     // Mirrors the grouping in settings/pages/Models.kt (upstream no longer has separate fixed lists).
-    val english = ALL_MODELS.filter { it.caps.supportedLanguages == setOf(Language.English) }
-        .sortedBy { it.caps.paramCount }
-    val multilingual = ALL_MODELS.filter { it.caps.supportedLanguages.size > 1 }
-        .sortedBy { it.caps.paramCount }
+    // Grouped by family (first word of the name, e.g. "Whisper"), smallest family first, then by size.
+    fun List<ModelLoader>.byFamily(): List<ModelLoader> {
+        fun family(m: ModelLoader) = context.getString(m.name).substringBefore(' ')
+        val smallest = groupBy { family(it) }.mapValues { (_, v) -> v.minOf { it.caps.paramCount } }
+        return sortedWith(compareBy({ smallest[family(it)] }, { family(it) }, { it.caps.paramCount }))
+    }
+    val english = ALL_MODELS.filter { it.caps.supportedLanguages == setOf(Language.English) }.byFamily()
+    val multilingual = ALL_MODELS.filter { it.caps.supportedLanguages.size > 1 }.byFamily()
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         val model = pending.value

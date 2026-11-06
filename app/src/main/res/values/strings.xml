@@ -286,4 +286,8 @@
     <string name="lynx_pause_cut">Cut long pauses</string>
     <string name="lynx_pause_cut_subtitle">Removes long silences before processing so they cost no time. Off while “Auto-stop on silence” is on.</string>
     <string name="lynx_pause_length">Pause length that splits speech: %1$d ms</string>
+    <string name="lynx_ignore_non_speech">Ignore sounds that are not speech</string>
+    <string name="lynx_ignore_non_speech_subtitle">Drops parts of a recording without speech (rustling, taps, traffic) so the model cannot invent text for them. Judged by speech detection, not volume.</string>
+    <string name="lynx_use_chunk_context">Use earlier text as context</string>
+    <string name="lynx_use_chunk_context_subtitle">Each part of a recording is transcribed knowing the text before it, which improves accuracy of short parts. Turn off if languages stick too much.</string>
 </resources>

@@ -518,7 +518,10 @@ class AudioRecognizer(
             if (!loaded) return@launch
 
             val device = try {
-                createRecorderAndJob(settings.recordingConfiguration.preferBluetoothMic)
+                // Audio-system setup can be slow on the very first start; keep it off the UI thread.
+                withContext(Dispatchers.Default) {
+                    createRecorderAndJob(settings.recordingConfiguration.preferBluetoothMic)
+                }
             } catch (e: SecurityException) {
                 // It's possible we may have lost permission, so let's just ask for permission again
                 clearCommunicationDevice()
