@@ -1,5 +1,13 @@
 package org.futo.voiceinput.shared.ui
 
+import androidx.compose.ui.unit.Dp
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.Path
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -186,7 +194,10 @@ fun InnerRecognize(
     magnitude: MutableFloatState = mutableFloatStateOf(0.5f),
     state: MutableState<MagnitudeState> = mutableStateOf(MagnitudeState.MIC_MAY_BE_BLOCKED),
     device: MutableState<MicrophoneDeviceState>? = null,
-    partialText: String? = ""
+    partialText: String? = "",
+    paused: Boolean = false,
+    onTogglePause: (() -> Unit)? = null,
+    extraText: String = ""
 ) {
     Box(modifier = Modifier, contentAlignment = Alignment.Center) {
         AnimatedRecognizeCircle(magnitude = magnitude)
@@ -198,11 +209,13 @@ fun InnerRecognize(
             tint = MaterialTheme.colorScheme.onPrimaryContainer
         )
 
-        val text = when (state.value) {
-            MagnitudeState.NOT_TALKED_YET -> stringResource(R.string.try_saying_something)
-            MagnitudeState.MIC_MAY_BE_BLOCKED -> stringResource(R.string.no_audio_detected_is_your_microphone_blocked)
-            MagnitudeState.TALKING -> stringResource(R.string.listening)
+        val baseText = when {
+            paused -> stringResource(R.string.lynx_paused)
+            state.value == MagnitudeState.NOT_TALKED_YET -> stringResource(R.string.try_saying_something)
+            state.value == MagnitudeState.MIC_MAY_BE_BLOCKED -> stringResource(R.string.no_audio_detected_is_your_microphone_blocked)
+            else -> stringResource(R.string.listening)
         }
+        val text = if (extraText.isNotEmpty()) baseText + "\n" + extraText else baseText
 
         if(partialText?.isNotEmpty() == true) {
             RecognizePartialText(partialText, modifier = Modifier.offset(x = 0.dp, y = 64.dp))
@@ -218,6 +231,63 @@ fun InnerRecognize(
         }
 
         BluetoothToggleIcon(device)
+
+        if (onTogglePause != null) PauseResumeButton(paused, onTogglePause)
+    }
+}
+
+@Composable
+private fun BoxScope.PauseResumeButton(paused: Boolean, onToggle: () -> Unit) {
+    val tint = MaterialTheme.colorScheme.onSurface
+    val description = stringResource(if (paused) R.string.lynx_resume_recording else R.string.lynx_pause_recording)
+    IconButton(
+        onClick = onToggle,
+        modifier = Modifier
+            .align(Alignment.BottomStart)
+            .offset(x = 16.dp, y = (-16).dp)
+            .semantics { contentDescription = description }
+    ) {
+        Canvas(Modifier.size(22.dp)) {
+            if (paused) {
+                val triangle = Path().apply {
+                    moveTo(size.width * 0.15f, 0f)
+                    lineTo(size.width, size.height / 2f)
+                    lineTo(size.width * 0.15f, size.height)
+                    close()
+                }
+                drawPath(triangle, tint)
+            } else {
+                val barWidth = size.width * 0.28f
+                drawRect(tint, topLeft = Offset(size.width * 0.12f, 0f), size = Size(barWidth, size.height))
+                drawRect(tint, topLeft = Offset(size.width * 0.60f, 0f), size = Size(barWidth, size.height))
+            }
+        }
+    }
+}
+
+/** Fork: spinner driven by frame time, so it also moves when the system animation scale is 0. */
+@Composable
+fun LynxSpinner(color: Color, modifier: Modifier = Modifier, diameter: Dp = 40.dp) {
+    var angle by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) {
+        var last = withFrameNanos { it }
+        while (true) {
+            val now = withFrameNanos { it }
+            angle = (angle + (now - last) / 1_000_000f * 0.36f) % 360f
+            last = now
+        }
+    }
+    Canvas(modifier.size(diameter)) {
+        val stroke = 4.dp.toPx()
+        drawArc(
+            color = color,
+            startAngle = angle,
+            sweepAngle = 270f,
+            useCenter = false,
+            topLeft = Offset(stroke / 2f, stroke / 2f),
+            size = Size(size.width - stroke, size.height - stroke),
+            style = Stroke(width = stroke, cap = StrokeCap.Round)
+        )
     }
 }
 
@@ -269,7 +339,7 @@ private fun RecognizePartialText(partialText: String, modifier: Modifier = Modif
 @Composable
 fun RecognizeLoadingCircle(text: String = "Initializing...", partialText: String? = null) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+        LynxSpinner(color = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.height(8.dp))
         if(partialText?.isNotEmpty() == true) {
             RecognizePartialText(partialText)

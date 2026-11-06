@@ -8,6 +8,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.joinAll
@@ -44,6 +45,8 @@ data class DecodingConfiguration(
     val ignoreNonSpeech: Boolean = true,
     /** Fork: give each chunk the text so far as context. */
     val useChunkContext: Boolean = true,
+    /** Fork: if two languages are given, mixed-language chunks are detected among these only. */
+    val primaryLanguages: Set<Language> = emptySet(),
 )
 
 private fun<T> MutableSet<T>.flatMapInPlace(transformator: (T) -> Iterable<T>) {
@@ -233,12 +236,15 @@ class MultiModelRunner(
                 var at = 0
                 for (part in parts) { part.copyInto(trimmed, at); at += part.size }
                 classic(if (trimmed.isEmpty()) emptyFlow() else flowOf(trimmed))
-            } else classic(sampleFlow)
+            } else classic(sampleFlow.filter { it.isNotEmpty() })
         } else {
             // Fork: pause-segmented, per-chunk language detection.
             // The first chunk is held back until a second one exists: a recording with a single chunk
             // takes the classic path (per-language model if configured), a longer one stays on the
             // multilingual model so no model has to be swapped mid-recording.
+            // Optional primary pair: chunks are detected between these two languages only.
+            val chunkLanguages = decodingConfiguration.primaryLanguages
+                .map { it.toWhisperString() }.filter { it in allowedLanguages }.toTypedArray().let { if (it.size >= 2) it else allowedLanguages }
             val mixedBail = if (decodingConfiguration.perLanguageModelsInMixed) bailLanguages else arrayOf()
             val texts = mutableListOf<String>()
             var pending: FloatArray? = null
@@ -250,7 +256,7 @@ class MultiModelRunner(
                 }
                 // Earlier text gives Whisper context (names, topic, spelling) for short chunks.
                 val chunkPrompt = if (decodingConfiguration.useChunkContext && texts.isNotEmpty())
-                    (glossary.compiledWords + " " + texts.joinToString(" ").takeLast(200)).trim()
+                    glossary.compiledWords + "\u0001" + texts.joinToString(" ").takeLast(200)
                 else glossary.compiledWords
                 val text = try {
                     callback.updateStatus(InferenceState.Encoding)
@@ -258,7 +264,7 @@ class MultiModelRunner(
                     primaryModel.infer(
                         sampleFlow = flowOf(chunk),
                         prompt = chunkPrompt,
-                        languages = allowedLanguages,
+                        languages = chunkLanguages,
                         bailLanguages = mixedBail,
                         partialResultCallback = shown,
                         tier = 3,
@@ -278,6 +284,7 @@ class MultiModelRunner(
                     )
                 }
                 if (text.isNotBlank()) texts.add(collapseRepeat(text.trim()))
+                primaryModel.detectedLanguage()?.let { getLanguageFromWhisperString(it) }?.let { callback.languageDetected(it) }
             }
 
             // Producer cuts chunks as audio arrives; consumer transcribes them in order. After the user

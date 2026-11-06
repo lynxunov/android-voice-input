@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.yield
 import org.futo.voiceinput.shared.ggml.InvalidModelException
 import org.futo.voiceinput.shared.types.AudioRecognizerListener
@@ -102,6 +103,7 @@ class AudioRecognizer(
     private val settings: AudioRecognizerSettings
 ) {
     @Volatile private var isRecording = false
+    @Volatile private var isPaused = false
     private var recorder: AudioRecord? = null
 
     private val modelRunner = MultiModelRunner(modelManager)
@@ -229,6 +231,7 @@ class AudioRecognizer(
 
         modelJob?.cancel()
         isRecording = false
+        isPaused = false
 
         modelRunner.cancelAll()
 
@@ -236,6 +239,20 @@ class AudioRecognizer(
 
         clearCommunicationDevice()
     }
+
+    /**
+     * Fork: pause = microphone off; what was said so far is cut into a chunk and keeps being processed
+     * in the background. Resume reuses the existing recorder, so there is no start-up delay.
+     */
+    fun pause() {
+        if (isRecording) isPaused = true
+    }
+
+    fun resume() {
+        isPaused = false
+    }
+
+    fun isPausedNow() = isPaused
 
     fun finish() {
         if(!isRecording) return
@@ -336,6 +353,25 @@ class AudioRecognizer(
 
         while (isRecording) {
             yield()
+
+            if (isPaused) {
+                // Hand over what is still buffered, close the mic, and mark a chunk boundary.
+                while (true) {
+                    val rest = recorder.read(samples, 0, 1600, AudioRecord.READ_NON_BLOCKING)
+                    if (rest <= 0) break
+                    audioChannel.trySend(samples.sliceArray(0 until rest).map { it.toFloat() / Short.MAX_VALUE.toFloat() }.toFloatArray())
+                }
+                try { recorder.stop() } catch (_: IllegalStateException) { }
+                audioChannel.trySend(FloatArray(0))
+                vadSampleBuffer.clear()
+                numConsecutiveNonSpeech = 0
+                numConsecutiveSpeech = 0
+                while (isPaused && isRecording) delay(50)
+                if (!isRecording) break
+                recorder.startRecording()
+                continue
+            }
+
             val nRead = recorder.read(samples, 0, 1600, AudioRecord.READ_BLOCKING)
             if (nRead <= 0) break
             yield()

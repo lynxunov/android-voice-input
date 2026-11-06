@@ -12,6 +12,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.futo.voiceinput.settings.IGNORE_NON_SPEECH
+import org.futo.voiceinput.settings.LANGUAGE_TOGGLES
+import org.futo.voiceinput.settings.PRIMARY_LANGUAGES
+import org.futo.voiceinput.settings.SHOW_DETECTED_LANGUAGES
+import org.futo.voiceinput.settings.SettingItem
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Row
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Alignment
+import java.util.Locale
 import org.futo.voiceinput.settings.IS_VAD_ENABLED
 import org.futo.voiceinput.settings.USE_CHUNK_CONTEXT
 import org.futo.voiceinput.settings.PAUSE_GAP_MS
@@ -82,6 +93,60 @@ fun AdvancedScreen(
             PER_LANGUAGE_MODELS_IN_MIXED,
             subtitle = stringResource(R.string.lynx_per_language_models_in_mixed_subtitle)
         )
+
+        SettingToggleDataStore(
+            stringResource(R.string.lynx_show_detected_languages),
+            SHOW_DETECTED_LANGUAGES,
+            subtitle = stringResource(R.string.lynx_show_detected_languages_subtitle)
+        )
+
+        // Primary language pair for mixed-language recordings (optional)
+        val enabledCodes = useDataStore(LANGUAGE_TOGGLES.key, LANGUAGE_TOGGLES.default).value
+        val primary = useDataStore(PRIMARY_LANGUAGES.key, PRIMARY_LANGUAGES.default)
+        var showPrimaryDialog by remember { mutableStateOf(false) }
+        fun langName(code: String) = Locale(code).getDisplayLanguage(Locale.getDefault()).replaceFirstChar { it.uppercase() }
+        val chosen = primary.value.filter { it in enabledCodes }
+        SettingItem(
+            title = stringResource(R.string.lynx_primary_languages),
+            subtitle = if (chosen.size == 2) chosen.joinToString(" + ") { langName(it) }
+                       else stringResource(R.string.lynx_primary_languages_subtitle),
+            onClick = { showPrimaryDialog = true },
+            disabled = enabledCodes.size < 3,
+            icon = { }
+        ) { }
+        if (showPrimaryDialog) {
+            var selection by remember { mutableStateOf(chosen.toSet()) }
+            AlertDialog(
+                onDismissRequest = { showPrimaryDialog = false },
+                title = { Text(stringResource(R.string.lynx_primary_languages)) },
+                text = {
+                    Column {
+                        Text(stringResource(R.string.lynx_primary_languages_hint))
+                        enabledCodes.sorted().forEach { code ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(
+                                    checked = code in selection,
+                                    onCheckedChange = { on ->
+                                        selection = if (on) { if (selection.size < 2) selection + code else selection } else selection - code
+                                    }
+                                )
+                                Text(langName(code))
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        // exactly two languages, or none (= all enabled languages are considered)
+                        primary.setValue(if (selection.size == 2) selection else emptySet())
+                        showPrimaryDialog = false
+                    }) { Text(stringResource(android.R.string.ok)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showPrimaryDialog = false }) { Text(stringResource(android.R.string.cancel)) }
+                }
+            )
+        }
 
         SettingToggleDataStore(
             stringResource(R.string.lynx_ignore_non_speech),

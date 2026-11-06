@@ -1,5 +1,6 @@
 package org.futo.voiceinput.shared
 
+import org.futo.voiceinput.shared.types.toWhisperString
 import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -39,6 +40,7 @@ data class RecognizerViewSettings(
     val shouldAnimateBubble: Boolean,
     val shouldShowLanguageSelector: Boolean,
     val shouldPlaySounds: Boolean,
+    val shouldShowDetectedLanguages: Boolean = false,
 
     val modelRunConfiguration: MultiModelRunConfiguration,
     val decodingConfiguration: DecodingConfiguration,
@@ -100,6 +102,12 @@ class RecognizerView(
         else -> null
     }
 
+    private val pausedState = mutableStateOf(false)
+    private val detectedLanguages = mutableStateOf<List<String>>(emptyList())
+    private fun detectedLabel() =
+        if (settings.shouldShowDetectedLanguages && detectedLanguages.value.isNotEmpty())
+            detectedLanguages.value.joinToString(" · ") else ""
+
     private val loadingCircleText = mutableStateOf("")
     private val partialDecodingText = mutableStateOf("")
     private val currentViewState = mutableStateOf(when {
@@ -130,7 +138,7 @@ class RecognizerView(
 
             CurrentView.LoadingCircle -> {
                 RecognizeLoadingCircle(
-                    text = loadingCircleText.value,
+                    text = loadingCircleText.value + detectedLabel().let { if (it.isEmpty()) "" else "\n" + it },
                     partialText = partialDecodingText.value
                 )
             }
@@ -140,7 +148,10 @@ class RecognizerView(
                     magnitude = magnitudeState,
                     state = statusState,
                     device = currentDeviceState,
-                    partialText = partialDecodingText.value
+                    partialText = partialDecodingText.value,
+                    paused = pausedState.value,
+                    onTogglePause = { togglePause() },
+                    extraText = detectedLabel()
                 )
             }
 
@@ -172,7 +183,19 @@ class RecognizerView(
         }
     }
 
+    fun togglePause() {
+        val r = recognizer ?: return
+        if (pausedState.value) {
+            r.resume()
+            pausedState.value = false
+        } else {
+            r.pause()
+            pausedState.value = true
+        }
+    }
+
     fun finish() {
+        pausedState.value = false
         recognizer?.finish()
         startPending = false
     }
@@ -198,7 +221,8 @@ class RecognizerView(
         }
 
         override fun languageDetected(language: Language) {
-            // TODO
+            val code = language.toWhisperString().uppercase()
+            if (code !in detectedLanguages.value) detectedLanguages.value = detectedLanguages.value + code
         }
 
         override fun modelLoadingFailed() {
@@ -255,6 +279,8 @@ class RecognizerView(
 
         override fun recordingStarted(device: MicrophoneDeviceState) {
             soundPlayer?.playStartSound()
+            pausedState.value = false
+            detectedLanguages.value = emptyList()
             updateMagnitude(0.0f, MagnitudeState.NOT_TALKED_YET)
             currentDeviceState.value = device
             listener.recordingStarted(device)
@@ -317,6 +343,7 @@ class RecognizerView(
 
 
     fun reset() {
+        pausedState.value = false
         recognizer?.reset()
         startPending = false
     }

@@ -122,6 +122,8 @@ val PER_LANGUAGE_MODELS_IN_MIXED = SettingsKey(booleanPreferencesKey("lynx_per_l
 
 val IGNORE_NON_SPEECH = SettingsKey(booleanPreferencesKey("lynx_ignore_non_speech"), true)
 val USE_CHUNK_CONTEXT = SettingsKey(booleanPreferencesKey("lynx_use_chunk_context"), true)
+val PRIMARY_LANGUAGES = SettingsKey(stringSetPreferencesKey("lynx_primary_languages"), setOf())
+val SHOW_DETECTED_LANGUAGES = SettingsKey(booleanPreferencesKey("lynx_show_detected_languages"), false)
 val CUT_LONG_PAUSES = SettingsKey(booleanPreferencesKey("lynx_cut_long_pauses"), true)
 val PAUSE_GAP_MS = SettingsKey(intPreferencesKey("lynx_pause_gap_ms"), 350)
 

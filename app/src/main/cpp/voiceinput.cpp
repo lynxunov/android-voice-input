@@ -21,11 +21,12 @@ std::string jstring2string(JNIEnv *env, jstring jStr) {
     if (stringUtf8Length <= 0) {
         return "";
     }
-    char stringChars[stringUtf8Length + 1];
-    env->GetStringUTFRegion(jStr, 0, env->GetStringLength(jStr), stringChars);
+    // Heap buffer (a stack VLA could overflow on very long input)
+    std::vector<char> stringChars((size_t)stringUtf8Length + 1, '\0');
+    env->GetStringUTFRegion(jStr, 0, env->GetStringLength(jStr), stringChars.data());
     stringChars[stringUtf8Length] = '\0';
 
-    return {stringChars};
+    return {stringChars.data()};
 }
 
 jstring string2jstring(JNIEnv *env, const char *str) {
@@ -33,7 +34,9 @@ jstring string2jstring(JNIEnv *env, const char *str) {
 
     jclass cls_Charset = env->FindClass("java/nio/charset/Charset");
     jmethodID mid_Charset_forName = env->GetStaticMethodID(cls_Charset, "forName", "(Ljava/lang/String;)Ljava/nio/charset/Charset;");
-    jobject charset = env->CallStaticObjectMethod(cls_Charset, mid_Charset_forName, env->NewStringUTF("UTF-8"));
+    jstring utf8Name = env->NewStringUTF("UTF-8");
+    jobject charset = env->CallStaticObjectMethod(cls_Charset, mid_Charset_forName, utf8Name);
+    env->DeleteLocalRef(utf8Name);
 
     jmethodID mid_Charset_decode = env->GetMethodID(cls_Charset, "decode", "(Ljava/nio/ByteBuffer;)Ljava/nio/CharBuffer;");
     jobject cb = env->CallObjectMethod(charset, mid_Charset_decode, bb);
@@ -43,8 +46,25 @@ jstring string2jstring(JNIEnv *env, const char *str) {
     jmethodID mid_CharBuffer_toString = env->GetMethodID(cls_CharBuffer, "toString", "()Ljava/lang/String;");
     jstring s = (jstring)env->CallObjectMethod(cb, mid_CharBuffer_toString);
 
+    // Fork: release local references (this runs for every partial result)
+    env->DeleteLocalRef(cb);
+    env->DeleteLocalRef(charset);
+    env->DeleteLocalRef(cls_Charset);
+    env->DeleteLocalRef(cls_CharBuffer);
+
     return s;
 }
+
+// Fork: releases pinned/copied Java float arrays on every exit path
+struct FloatArrayGuard {
+    JNIEnv *env;
+    jfloatArray array;
+    jfloat *data;
+    FloatArrayGuard(JNIEnv *e, jfloatArray a) : env(e), array(a), data(e->GetFloatArrayElements(a, nullptr)) {}
+    ~FloatArrayGuard() { if (data != nullptr) env->ReleaseFloatArrayElements(array, data, JNI_ABORT); }
+    FloatArrayGuard(const FloatArrayGuard &) = delete;
+    FloatArrayGuard &operator=(const FloatArrayGuard &) = delete;
+};
 
 struct whisper_context {
     int x;
@@ -200,7 +220,8 @@ static jstring WhisperGGML_infer(JNIEnv *env, jobject instance, jlong handle, jf
           "(Ljava/lang/String;)V");
 
     int num_samples = env->GetArrayLength(samples_array);
-    jfloat *samples = env->GetFloatArrayElements(samples_array, nullptr);
+    FloatArrayGuard samples_guard(env, samples_array);
+    jfloat *samples = samples_guard.data;
 
 
     struct transcribe_whisper_run_ext wp;
@@ -225,6 +246,13 @@ static jstring WhisperGGML_infer(JNIEnv *env, jobject instance, jlong handle, jf
 
         if(prompt) {
             auto p = jstring2string(env, prompt);
+            // Fork: "glossary \x01 context" - the part after \x01 is earlier text used as plain context
+            std::string context_text;
+            auto sep = p.find('\x01');
+            if(sep != std::string::npos) {
+                context_text = p.substr(sep + 1);
+                p = p.substr(0, sep);
+            }
             if(!p.empty()) {
                 if(language_hint == "en") {
                     prompt_str.append("(Glossary: ");
@@ -235,11 +263,15 @@ static jstring WhisperGGML_infer(JNIEnv *env, jobject instance, jlong handle, jf
                     if(c == '\n') prompt_str.append(", ");
                     else prompt_str.push_back(c);
                 }
-                if(strcmp(&prompt_str[prompt_str.length() - 2], ", ") == 0) {
+                if(prompt_str.size() >= 2 && prompt_str.compare(prompt_str.size() - 2, 2, ", ") == 0) {
                     prompt_str.pop_back();
                     prompt_str.pop_back();
                 }
                 prompt_str.append(")");
+            }
+            if(!context_text.empty()) {
+                if(!prompt_str.empty()) prompt_str.append(" ");
+                prompt_str.append(context_text);
             }
         }
 
@@ -414,7 +446,8 @@ static jboolean WhisperGGML_feedStream(JNIEnv *env, jobject instance, jlong hand
             "(Ljava/lang/String;)V");
 
     int num_samples = env->GetArrayLength(samples_array);
-    jfloat *samples = env->GetFloatArrayElements(samples_array, nullptr);
+    FloatArrayGuard samples_guard(env, samples_array);
+    jfloat *samples = samples_guard.data;
 
     auto t0 = duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
@@ -520,7 +553,16 @@ static void WhisperGGML_close(JNIEnv *env, jclass clazz, jlong handle) {
 
 static void WhisperGGML_cancel(JNIEnv *env, jclass clazz, jlong handle) {
     auto *state = reinterpret_cast<WhisperModelState *>(handle);
+    if (state == nullptr) return;
     state->cancel_flag = 1;
+}
+
+// Fork: language the engine detected for the last run ("" if unknown)
+static jstring WhisperGGML_detectedLanguage(JNIEnv *env, jclass clazz, jlong handle) {
+    auto *state = reinterpret_cast<WhisperModelState *>(handle);
+    if (state == nullptr || state->session == nullptr) return env->NewStringUTF("");
+    const char *language = transcribe_detected_language(state->session);
+    return env->NewStringUTF(language != nullptr ? language : "");
 }
 
 static const JNINativeMethod sMethods[] = {
@@ -548,6 +590,11 @@ static const JNINativeMethod sMethods[] = {
                 const_cast<char *>("stopStreamNative"),
                 const_cast<char *>("(JZ)Ljava/lang/String;"),
                 reinterpret_cast<void *>(WhisperGGML_stopStream)
+        },
+        {
+                const_cast<char *>("detectedLanguageNative"),
+                const_cast<char *>("(J)Ljava/lang/String;"),
+                reinterpret_cast<void *>(WhisperGGML_detectedLanguage)
         },
         {
                 const_cast<char *>("cancelNative"),

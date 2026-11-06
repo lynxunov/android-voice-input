@@ -22,6 +22,8 @@ import org.futo.voiceinput.models.ModelPickerActivity
 import org.futo.voiceinput.models.withSafStorage
 import org.futo.voiceinput.settings.CURRENT_MIGRATION_LEVEL
 import org.futo.voiceinput.settings.CUT_LONG_PAUSES
+import org.futo.voiceinput.settings.PRIMARY_LANGUAGES
+import org.futo.voiceinput.settings.SHOW_DETECTED_LANGUAGES
 import org.futo.voiceinput.settings.IGNORE_NON_SPEECH
 import org.futo.voiceinput.settings.USE_CHUNK_CONTEXT
 import org.futo.voiceinput.settings.PAUSE_GAP_MS
@@ -351,6 +353,7 @@ fun Context.loadRecognizerSettings(inlinePartialResult: Boolean = false): Recogn
         shouldShowInlinePartialResult = inlinePartialResult,
         shouldAnimateBubble = getSetting(ENABLE_ANIMATIONS),
         shouldPlaySounds = getSetting(ENABLE_SOUND),
+        shouldShowDetectedLanguages = getSetting(SHOW_DETECTED_LANGUAGES),
         shouldShowLanguageSelector = needLanguageSelector,
         modelRunConfiguration = MultiModelRunConfiguration(
             primaryModel = primaryModel,
@@ -367,6 +370,7 @@ fun Context.loadRecognizerSettings(inlinePartialResult: Boolean = false): Recogn
             pauseGapMs = if (getSetting(IS_VAD_ENABLED)) 350 else getSetting(PAUSE_GAP_MS),
             cutLongPauses = getSetting(CUT_LONG_PAUSES) && !getSetting(IS_VAD_ENABLED),
             ignoreNonSpeech = getSetting(IGNORE_NON_SPEECH),
+            primaryLanguages = getSetting(PRIMARY_LANGUAGES).mapNotNull { getLanguageFromWhisperString(it) }.toSet(),
             useChunkContext = getSetting(USE_CHUNK_CONTEXT),
         ),
         recordingConfiguration = RecordingSettings(

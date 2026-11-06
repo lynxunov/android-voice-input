@@ -187,7 +187,7 @@ class RecognizeActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
 
-        recognizer!!.reset()
+        recognizer?.reset()
     }
 
     private val permission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {

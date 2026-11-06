@@ -76,6 +76,13 @@ fun Flow<FloatArray>.segmentByPauses(
         }
 
         upstream.collect { chunk ->
+            if (chunk.isEmpty()) {
+                // Pause marker: close the current chunk now, whatever its length, and start fresh after the pause.
+                if (speechFrames > 0 && buf.size > 0) offer(buf.copy(0, buf.size))
+                buf.dropFirst(buf.size)
+                scanned = 0; speechFrames = 0; silentRun = 0; lastSpeechEnd = 0
+                return@collect
+            }
             buf.append(chunk)
             while (buf.size - scanned >= FRAME) {
                 val rms = buf.rms(scanned, FRAME)

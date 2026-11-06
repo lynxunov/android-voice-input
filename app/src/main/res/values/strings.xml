@@ -290,4 +290,9 @@
     <string name="lynx_ignore_non_speech_subtitle">Drops parts of a recording without speech (rustling, taps, traffic) so the model cannot invent text for them. Judged by speech detection, not volume.</string>
     <string name="lynx_use_chunk_context">Use earlier text as context</string>
     <string name="lynx_use_chunk_context_subtitle">Each part of a recording is transcribed knowing the text before it, which improves accuracy of short parts. Turn off if languages stick too much.</string>
+    <string name="lynx_show_detected_languages">Show detected languages</string>
+    <string name="lynx_show_detected_languages_subtitle">Shows the language(s) found in the recording while it is processed. Only available for models that report the detected language.</string>
+    <string name="lynx_primary_languages">Primary language pair</string>
+    <string name="lynx_primary_languages_subtitle">Optional. Mixed-language recordings are then detected between these two languages only (more reliable). Needs three or more enabled languages.</string>
+    <string name="lynx_primary_languages_hint">Choose exactly two languages, or none to consider all enabled languages. Other languages still work for recordings in a single language.</string>
 </resources>

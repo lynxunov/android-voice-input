@@ -149,3 +149,14 @@ git submodule update --init --recursive
 - New: exact "A. A." duplicate output of one chunk is collapsed to one copy (Whisper artefact when audio starts abruptly).
 - Perf/robustness: `ModelManager` is thread-safe; recorder setup runs off the UI thread (first-start freeze under investigation).
 - Design notes: true same-language merging needs a detection-only pass per chunk (the engine does not report the detected language), i.e. ~2x encoder work and delayed transcription of the last run; context carry-over was chosen first as it gives most of the accuracy gain at no latency cost.
+
+## 1.6.0-lynx – pause/resume, primary pair, detected languages, native fixes
+- New: pause/resume button on the recording screen (bottom left). Pausing turns the microphone off, closes the current chunk and keeps processing everything said so far in the background; resuming reuses the open recorder (no start-up delay). Pause marker = empty sample array, understood by `PauseSegmenter`; filtered out for the classic and streaming paths.
+- New: Advanced → "Primary language pair" (exactly two of the enabled languages): mixed-language chunks are detected between these two only; other enabled languages still work for single-language recordings.
+- New: Advanced → "Show detected languages": after each chunk the engine's detected language is shown (JNI `detectedLanguageNative` → `transcribe_detected_language`). Depends on the engine reporting a language after a normal run; shows nothing otherwise.
+- New: spinner on the loading screen is driven by frame time (works with system animation scale 0 / power saving), theme-coloured.
+- Native (`voiceinput.cpp`), from the private Devin audit (verified in code): `GetFloatArrayElements` was never released in `infer` and `feedStream` (leak per chunk) → RAII guard; `prompt_str` out-of-bounds read; VLA in `jstring2string` → heap; null-check in `cancel`; local references released in `string2jstring`.
+- Native: prompt may carry earlier text after `\x01`; it is appended as plain context after the glossary instead of being formatted as glossary words.
+- Fix: `RecognizeActivity.onDestroy` null-safe; `visibleToInstantApps` removed from `RecognizeActivity`.
+- Reviewed, not changed: `DummyService` returns a null binder (harmless); fd kept open per loaded SAF model (bounded, needed while the engine may read lazily); `is_ahead` and thread-count logic are upstream.
+- Decided against (for now): separate language-ID model – a second inference runtime + download, and Whisper would still need to transcribe each chunk; language-batched transcription needs pre-detection per chunk.

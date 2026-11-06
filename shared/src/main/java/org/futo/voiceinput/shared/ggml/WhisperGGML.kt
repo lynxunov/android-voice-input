@@ -125,6 +125,11 @@ class WhisperGGML(
         }
     }
 
+    /** Fork: language the engine detected during the last run, or null if unknown. */
+    suspend fun detectedLanguage(): String? = withContext(inferenceContext) {
+        if (handle == 0L) null else detectedLanguageNative(handle)?.trim()?.ifBlank { null }
+    }
+
     fun cancel() {
         if(handle == 0L) return
         cancelNative(handle)
@@ -143,5 +148,6 @@ class WhisperGGML(
     private external fun feedStreamNative(handle: Long, samples: FloatArray): Boolean
     private external fun stopStreamNative(handle: Long, finalize: Boolean): String?
     private external fun cancelNative(handle: Long)
+    private external fun detectedLanguageNative(handle: Long): String?
     private external fun closeNative(handle: Long)
 }

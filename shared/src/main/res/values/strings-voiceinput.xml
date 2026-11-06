@@ -30,6 +30,9 @@
 
     <!-- Generic string to indicate the voice recognition model is processing the recorded audio. Must be fairly short. -->
     <string name="processing">Processing…</string>
+    <string name="lynx_paused">Paused</string>
+    <string name="lynx_pause_recording">Pause recording</string>
+    <string name="lynx_resume_recording">Resume recording</string>
     <string name="lynx_progress_chunk">Processing part %1$d of %2$d…</string>
 
     <!-- Generic string to indicate the voice recognition model is initializing. Must be fairly short. -->
